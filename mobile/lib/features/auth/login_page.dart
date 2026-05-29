@@ -1,23 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
+import '../../core/auth/auth_repository.dart';
 
-class LoginPage extends StatefulWidget {
+class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends ConsumerState<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _isLoading = false;
   bool _obscurePassword = true;
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+
+    // Listen for auth state changes
+    ref.listen(authProvider, (prev, next) {
+      if (next.isAuthenticated) {
+        context.go('/home');
+      }
+      if (next.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(next.error!), backgroundColor: AppColors.loss),
+        );
+      }
+    });
+
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -60,15 +75,18 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton(
-                  onPressed: _isLoading ? null : _handleLogin,
-                  child: _isLoading
+                  onPressed: authState.isLoading ? null : _handleLogin,
+                  child: authState.isLoading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : const Text('登录'),
                 ),
                 const SizedBox(height: 16),
-                TextButton(onPressed: () {}, child: const Text('忘记密码？')),
                 TextButton(
-                  onPressed: () {},
+                  onPressed: () => _showForgotPassword(context),
+                  child: const Text('忘记密码？'),
+                ),
+                TextButton(
+                  onPressed: () => context.push('/register'),
                   child: const Text('没有账号？立即注册'),
                 ),
               ],
@@ -79,12 +97,45 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  Future<void> _handleLogin() async {
+  void _handleLogin() {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
-    // TODO: Call API
-    await Future.delayed(const Duration(seconds: 1));
-    if (mounted) context.go('/home');
-    setState(() => _isLoading = false);
+    ref.read(authProvider.notifier).login(
+      _identifierController.text.trim(),
+      _passwordController.text,
+    );
+  }
+
+  void _showForgotPassword(BuildContext context) {
+    final emailController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('忘记密码'),
+        content: TextField(
+          controller: emailController,
+          decoration: const InputDecoration(labelText: '邮箱', prefixIcon: Icon(Icons.email)),
+          keyboardType: TextInputType.emailAddress,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('如果该邮箱已注册，重置链接将发送到您的邮箱')),
+              );
+            },
+            child: const Text('发送'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _identifierController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 }

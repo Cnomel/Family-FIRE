@@ -1,26 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../config/theme.dart';
+import '../../core/auth/auth_repository.dart';
 
-class RegisterPage extends StatefulWidget {
+class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
 
   @override
-  State<RegisterPage> createState() => _RegisterPageState();
+  ConsumerState<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _RegisterPageState extends State<RegisterPage> {
+class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   final _nameController = TextEditingController();
-  bool _isLoading = false;
   double _passwordStrength = 0;
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider);
+
+    ref.listen(authProvider, (prev, next) {
+      if (next.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(next.error!), backgroundColor: AppColors.loss),
+        );
+      }
+    });
+
     return Scaffold(
       appBar: AppBar(title: const Text('注册')),
       body: SingleChildScrollView(
@@ -36,6 +47,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 validator: (v) {
                   if (v?.isEmpty ?? true) return '请输入用户名';
                   if (v!.length < 3) return '用户名至少3位';
+                  if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(v)) return '仅支持字母、数字、下划线';
                   return null;
                 },
               ),
@@ -46,7 +58,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 decoration: const InputDecoration(labelText: '邮箱', prefixIcon: Icon(Icons.email)),
                 validator: (v) {
                   if (v?.isEmpty ?? true) return '请输入邮箱';
-                  if (!v!.contains('@')) return '邮箱格式不正确';
+                  if (!v!.contains('@') || !v.contains('.')) return '邮箱格式不正确';
                   return null;
                 },
               ),
@@ -65,32 +77,25 @@ class _RegisterPageState extends State<RegisterPage> {
                 validator: (v) {
                   if (v?.isEmpty ?? true) return '请输入密码';
                   if (v!.length < 8) return '密码至少8位';
+                  if (!v.contains(RegExp(r'[A-Z]'))) return '需包含大写字母';
+                  if (!v.contains(RegExp(r'[a-z]'))) return '需包含小写字母';
+                  if (!v.contains(RegExp(r'[0-9]'))) return '需包含数字';
                   return null;
                 },
               ),
               const SizedBox(height: 8),
-              LinearProgressIndicator(
-                value: _passwordStrength,
-                backgroundColor: Colors.grey[200],
-                color: _passwordStrength < 0.3
-                    ? AppColors.loss
-                    : _passwordStrength < 0.7
-                        ? AppColors.warning
-                        : AppColors.profit,
-              ),
-              const SizedBox(height: 4),
-              Text(_passwordStrengthLabel, style: TextStyle(fontSize: 12, color: _passwordStrengthColor)),
+              _buildPasswordStrengthBar(),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _confirmController,
                 obscureText: true,
-                decoration: const InputDecoration(labelText: '确认密码', prefixIcon: Icon(Icons.lock)),
+                decoration: const InputDecoration(labelText: '确认密码', prefixIcon: Icon(Icons.lock_outline)),
                 validator: (v) => v != _passwordController.text ? '两次密码不一致' : null,
               ),
               const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: _isLoading ? null : _handleRegister,
-                child: _isLoading
+                onPressed: authState.isLoading ? null : _handleRegister,
+                child: authState.isLoading
                     ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Text('注册'),
               ),
@@ -105,6 +110,39 @@ class _RegisterPageState extends State<RegisterPage> {
     );
   }
 
+  Widget _buildPasswordStrengthBar() {
+    Color color;
+    String label;
+    if (_passwordStrength < 0.25) {
+      color = AppColors.loss;
+      label = '弱';
+    } else if (_passwordStrength < 0.5) {
+      color = AppColors.warning;
+      label = '一般';
+    } else if (_passwordStrength < 0.75) {
+      color = AppColors.primary;
+      label = '较强';
+    } else {
+      color = AppColors.profit;
+      label = '强';
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: LinearProgressIndicator(
+            value: _passwordStrength,
+            backgroundColor: Colors.grey[200],
+            color: color,
+            minHeight: 4,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(label, style: TextStyle(fontSize: 12, color: color)),
+      ],
+    );
+  }
+
   void _updatePasswordStrength(String password) {
     double strength = 0;
     if (password.length >= 8) strength += 0.25;
@@ -114,25 +152,30 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() => _passwordStrength = strength);
   }
 
-  String get _passwordStrengthLabel {
-    if (_passwordStrength < 0.25) return '弱';
-    if (_passwordStrength < 0.5) return '一般';
-    if (_passwordStrength < 0.75) return '较强';
-    return '强';
-  }
-
-  Color get _passwordStrengthColor {
-    if (_passwordStrength < 0.3) return AppColors.loss;
-    if (_passwordStrength < 0.7) return AppColors.warning;
-    return AppColors.profit;
-  }
-
-  Future<void> _handleRegister() async {
+  void _handleRegister() {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _isLoading = true);
-    // TODO: Call API
-    await Future.delayed(const Duration(seconds: 1));
-    if (mounted) context.pop();
-    setState(() => _isLoading = false);
+    ref.read(authProvider.notifier).register(
+      _usernameController.text.trim(),
+      _emailController.text.trim(),
+      _passwordController.text,
+      _nameController.text.trim(),
+    ).then((success) {
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('注册成功，请登录'), backgroundColor: AppColors.profit),
+        );
+        context.pop();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmController.dispose();
+    _nameController.dispose();
+    super.dispose();
   }
 }
