@@ -64,7 +64,8 @@ family-fire/
 │   │   ├── finance/        # 财务 (收支/投资/FIRE)
 │   │   ├── documents/      # 文档管理
 │   │   └── notifications/  # 通知系统
-│   └── tests/              # 158+ 测试
+│   ├── scripts/            # 初始化脚本
+│   └── tests/              # 182+ 测试
 ├── mobile/                  # Flutter 前端
 ├── scripts/                 # 部署脚本
 ├── tasks/                   # 任务定义

@@ -106,7 +106,7 @@ async def compute_monthly_summary(
 ) -> dict[str, Any]:
     """Compute monthly income/expense summary."""
     from datetime import timedelta
-    cutoff = datetime.utcnow() - timedelta(days=months * 30)
+    cutoff = datetime.now(UTC) - timedelta(days=months * 30)
 
     # Income
     income_stmt = (

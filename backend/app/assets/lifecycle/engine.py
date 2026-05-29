@@ -11,6 +11,13 @@ from app.common.logging import get_logger
 logger = get_logger("lifecycle")
 
 
+def _ensure_tz_aware(dt: datetime) -> datetime:
+    """Ensure datetime is timezone-aware (assume UTC if naive)."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC)
+    return dt
+
+
 def compute_current_value(
     trajectory: str,
     purchase_price: float,
@@ -37,11 +44,11 @@ def compute_current_value(
     if not config:
         config = {}
 
-    today = datetime.utcnow()
+    today = datetime.now(UTC)
 
-    # Normalize purchase_date to naive UTC
-    if purchase_date and purchase_date.tzinfo is not None:
-        purchase_date = purchase_date.replace(tzinfo=None)
+    # Ensure purchase_date is timezone-aware
+    if purchase_date:
+        purchase_date = _ensure_tz_aware(purchase_date)
 
     match trajectory:
         case "depreciating":
@@ -79,8 +86,6 @@ def _compute_depreciating(
         return purchase_price
 
     # Ensure timezone-aware comparison
-    if purchase_date and purchase_date.tzinfo is not None:
-        purchase_date = purchase_date.replace(tzinfo=None)
 
     method = config.get("method", "straight_line")
     rate = config.get("rate", 0.15)
@@ -136,12 +141,9 @@ def _compute_expiring(
 
     try:
         end_date = datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
+        end_date = _ensure_tz_aware(end_date)
     except (ValueError, AttributeError):
         return renewal_cost
-
-    # Ensure timezone-aware comparison
-    if end_date.tzinfo is not None:
-        end_date = end_date.replace(tzinfo=None)
 
     remaining_days = max(0, (end_date - today).days)
     total_days = config.get("total_days", 365)
@@ -197,8 +199,6 @@ def _compute_appreciating(
         return purchase_price * (1 + annual_rate)
 
     # Ensure timezone-aware comparison
-    if purchase_date and purchase_date.tzinfo is not None:
-        purchase_date = purchase_date.replace(tzinfo=None)
 
     age_years = (today - purchase_date).days / 365.25
     return purchase_price * ((1 + annual_rate) ** age_years)
@@ -220,12 +220,11 @@ def compute_value_history(
 
     from dateutil.relativedelta import relativedelta
 
-    # Normalize to naive UTC
-    if purchase_date.tzinfo is not None:
-        purchase_date = purchase_date.replace(tzinfo=None)
+    # Ensure purchase_date is timezone-aware
+    purchase_date = _ensure_tz_aware(purchase_date)
 
     history = []
-    today = datetime.utcnow()
+    today = datetime.now(UTC)
 
     for i in range(months, -1, -1):
         date = today - relativedelta(months=i)
