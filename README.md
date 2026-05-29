@@ -1,106 +1,119 @@
-# Family Fire — 家庭资产管理系统
+# 🔥 Family Fire
+
+[![CI](https://github.com/your-repo/family-fire/actions/workflows/ci.yml/badge.svg)](https://github.com/your-repo/family-fire/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
+[![Flutter 3.x](https://img.shields.io/badge/flutter-3.x-02569B.svg)](https://flutter.dev/)
 
 > 通过资产关系管理、日常支出追踪、投资分析，帮助家庭实现 FIRE（财务独立/提前退休）
 
-## 技术栈
+[English](#english) | [中文](#中文)
+
+---
+
+## 中文
+
+### 功能特性
+
+| 模块 | 功能 |
+|------|------|
+| **资产分类** | 四维度分类（性质/用途/持有/流动性）+ 自由标签 |
+| **生命周期** | 六种轨迹：折旧/消耗/到期/增值/波动/稳定 |
+| **资产关系** | 10种关系类型，可视化关系图谱 |
+| **FIRE引擎** | 净资产/储蓄率/FIRE数字/蒙特卡洛模拟 |
+| **投资追踪** | A股+美股+加密货币+基金，实时价格 |
+| **负债管理** | 房贷/车贷/信用卡/消费贷，月供计算 |
+| **家庭协作** | 邀请码加入，防重复提醒，权限管理 |
+| **文档管理** | 说明书/保修书在线预览 |
+| **通知系统** | 到期提醒/变动通知/实时推送 |
+
+### 快速开始
+
+```bash
+# 一键部署
+git clone https://github.com/your-repo/family-fire.git
+cd family-fire
+chmod +x scripts/setup.sh
+./scripts/setup.sh
+```
+
+部署完成后访问：
+- API 文档: http://localhost:8000/docs
+- 默认管理员: admin / Admin@123456
+
+### 技术栈
 
 | 层级 | 技术 |
 |------|------|
-| 后端框架 | FastAPI + Uvicorn |
-| ORM | SQLModel (SQLAlchemy + Pydantic) |
-| 数据库 | PostgreSQL 16 |
-| 缓存 | Redis 7 |
-| 对象存储 | MinIO (S3兼容) |
-| 包管理 | uv |
-| Python | 3.12 |
-| 前端 | Flutter 3.x |
+| 后端 | FastAPI + SQLModel + PostgreSQL + Redis + MinIO |
+| 前端 | Flutter 3.x + Riverpod + fl_chart |
 | 任务队列 | Celery + Redis |
+| 包管理 | uv (Python), pub (Flutter) |
+| 容器化 | Docker + Docker Compose |
 
-## 快速开始
-
-### 前置条件
-- Python 3.12+
-- uv (包管理器)
-- Docker & Docker Compose
-
-### 启动开发环境
-
-```bash
-# 1. 克隆仓库
-git clone https://github.com/your-repo/family-fire.git
-cd family-fire
-
-# 2. 启动基础设施
-docker-compose up -d postgres redis minio
-
-# 3. 安装后端依赖
-cd backend
-uv sync
-
-# 4. 配置环境变量
-cp ../.env.example .env
-# 编辑 .env 文件
-
-# 5. 运行数据库迁移
-uv run alembic upgrade head
-
-# 6. 启动后端
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# 7. 访问 API 文档
-open http://localhost:8000/docs
-```
-
-### 运行测试
-
-```bash
-cd backend
-uv run pytest -v
-```
-
-## 项目结构
+### 项目结构
 
 ```
 family-fire/
-├── backend/                # FastAPI 后端
+├── backend/                 # FastAPI 后端
 │   ├── app/
-│   │   ├── common/         # 公共模块（日志、异常、中间件、安全）
-│   │   ├── auth/           # 认证模块
-│   │   ├── users/          # 用户模块
-│   │   ├── families/       # 家庭模块
-│   │   ├── assets/         # 资产模块（含生命周期、关系）
-│   │   ├── finance/        # 财务模块（收支、投资、FIRE）
-│   │   ├── documents/      # 文档模块
-│   │   └── notifications/  # 通知模块
-│   ├── alembic/            # 数据库迁移
-│   └── tests/              # 测试
-├── mobile/                 # Flutter 前端
-├── tasks/                  # 任务定义（16个task.json）
-├── docs/                   # 文档
-├── docker-compose.yml      # 开发环境
-└── .github/workflows/      # CI/CD
+│   │   ├── auth/           # 认证 (JWT/RBAC)
+│   │   ├── users/          # 用户管理
+│   │   ├── families/       # 家庭管理
+│   │   ├── assets/         # 资产管理 (含生命周期/关系)
+│   │   ├── finance/        # 财务 (收支/投资/FIRE)
+│   │   ├── documents/      # 文档管理
+│   │   └── notifications/  # 通知系统
+│   └── tests/              # 158+ 测试
+├── mobile/                  # Flutter 前端
+├── scripts/                 # 部署脚本
+├── tasks/                   # 任务定义
+└── docker-compose.yml       # 开发环境
 ```
 
-## 核心功能
+### 国内化特性
 
-- **多维度资产分类**：性质、用途、持有方式、流动性四维度
-- **生命周期管理**：折旧、消耗、到期、增值、波动六种轨迹
-- **资产关系图谱**：10种关系类型，支持可视化
-- **FIRE计算引擎**：净资产、储蓄率、FIRE数字、蒙特卡洛模拟
-- **投资追踪**：A股+美股+加密货币+基金，实时价格
-- **负债管理**：房贷、车贷、信用卡、消费贷
-- **家庭协作**：多人共同管理资产，防重复提醒
-- **文档管理**：说明书、保修书在线预览
-- **通知系统**：到期提醒、变动通知
+- 🔴 红涨绿跌（红色=盈利，绿色=亏损）
+- 💰 ¥货币格式 + 万/亿大数单位
+- 📋 标准中文支出/收入分类（参考支付宝/随手记）
+- 👤 用户名+邮箱双登录
+- 🔒 隐私模式（默认隐藏金额）
 
-## 国内化特性
+### 贡献
 
-- 红涨绿跌（红色=盈利，绿色=亏损）
-- ¥货币格式 + 万/亿大数单位
-- 标准中文支出/收入分类
-- 用户名+邮箱登录
-- 隐私模式（默认隐藏金额）
+欢迎贡献！请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
-## 许可证
+### 协议
 
-MIT License
+本项目基于 [MIT 协议](LICENSE) 开源。
+
+---
+
+## English
+
+### Features
+
+| Module | Features |
+|--------|----------|
+| **Asset Classification** | 4-dimension classification + free tags |
+| **Lifecycle** | 6 trajectories: depreciating/consumable/expiring/appreciating/volatile/stable |
+| **Relationships** | 10 relationship types, visual graph |
+| **FIRE Engine** | Net worth/savings rate/FIRE number/Monte Carlo simulation |
+| **Investment** | A-shares + US stocks + crypto + funds, real-time prices |
+| **Liabilities** | Mortgage/auto loan/credit card/consumer loan |
+| **Family** | Invite codes, duplicate alerts, permission management |
+| **Documents** | Online preview for manuals/warranties |
+| **Notifications** | Expiry reminders, change alerts, real-time push |
+
+### Quick Start
+
+```bash
+git clone https://github.com/your-repo/family-fire.git
+cd family-fire
+chmod +x scripts/setup.sh
+./scripts/setup.sh
+```
+
+### License
+
+[MIT](LICENSE)
