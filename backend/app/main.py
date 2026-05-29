@@ -94,6 +94,7 @@ def create_app() -> FastAPI:
         }
 
     # Register API routers
+    from app.assets.router import router as assets_router
     from app.auth.router import router as auth_router
     from app.families.router import router as families_router
     from app.users.router import router as users_router
@@ -101,14 +102,13 @@ def create_app() -> FastAPI:
     app.include_router(auth_router, prefix="/api/auth", tags=["认证"])
     app.include_router(users_router, prefix="/api/users", tags=["用户"])
     app.include_router(families_router, prefix="/api/families", tags=["家庭"])
+    app.include_router(assets_router, prefix="/api/families/{family_id}/assets", tags=["资产"])
 
     # Will be added in subsequent tasks
-    # from app.assets.router import router as assets_router
     # from app.finance.router import router as finance_router
     # from app.documents.router import router as documents_router
     # from app.notifications.router import router as notifications_router
 
-    # app.include_router(assets_router, prefix="/api/assets", tags=["资产"])
     # app.include_router(finance_router, prefix="/api/finance", tags=["财务"])
     # app.include_router(documents_router, prefix="/api/documents", tags=["文档"])
     # app.include_router(notifications_router, prefix="/api/notifications", tags=["通知"])

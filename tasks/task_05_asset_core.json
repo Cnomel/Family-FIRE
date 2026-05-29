@@ -1,0 +1,71 @@
+{
+  "id": "T5",
+  "name": "资产管理核心引擎",
+  "name_en": "Asset Management Core Engine",
+  "branch": "feat/asset-core",
+  "dependencies": ["T4"],
+  "priority": "high",
+  "status": "pending",
+  "description": "实现资产的完整管理，包括多维度分类、标签系统、全文搜索、批量操作、自定义字段、资产统计、重复检测。远超基础CRUD。",
+  "deliverables": [
+    "backend/app/assets/router.py — 资产API路由",
+    "backend/app/assets/service.py — 资产业务逻辑（含搜索、统计、重复检测）",
+    "backend/app/assets/schemas.py — 资产Schema（各类型元数据Schema）",
+    "backend/app/assets/search.py — PostgreSQL全文搜索（中英文）",
+    "backend/app/assets/stats.py — 资产统计服务"
+  ],
+  "api_endpoints": [
+    "POST /api/assets — 创建资产（带类型特定元数据）",
+    "GET /api/assets — 资产列表（高级筛选：nature/utility/ownership/liquidity/tags/价格范围/日期范围）",
+    "GET /api/assets/:id — 资产详情（含元数据+关系+文档）",
+    "PUT /api/assets/:id — 更新资产",
+    "DELETE /api/assets/:id — 软删除/归档",
+    "POST /api/assets/bulk — 批量操作（归档/删除/标签）",
+    "GET /api/assets/search — 全文搜索",
+    "GET /api/assets/tags — 所有标签（含使用计数）",
+    "POST /api/assets/:id/tags — 添加标签",
+    "DELETE /api/assets/:id/tags/:tag — 删除标签",
+    "GET /api/assets/stats — 资产统计（按维度分组）"
+  ],
+  "acceptance_criteria": [
+    "各类型资产创建成功（车辆、房产、电子产品、保险、金融、订阅、消耗品、账号、家具）",
+    "四维度分类筛选正确",
+    "标签CRUD正确",
+    "全文搜索支持中英文",
+    "批量操作成功",
+    "统计结果准确",
+    "重复检测正确（名称+类型+品牌）",
+    "分页查询正确",
+    "家庭范围隔离正确"
+  ],
+  "tests": [
+    "test_create_vehicle_asset — 创建车辆",
+    "test_create_real_estate_asset — 创建房产",
+    "test_create_financial_asset — 创建金融资产",
+    "test_create_subscription_asset — 创建订阅",
+    "test_create_consumable_asset — 创建消耗品",
+    "test_filter_by_nature — 按性质筛选",
+    "test_filter_by_utility — 按用途筛选",
+    "test_filter_by_tags — 按标签筛选",
+    "test_full_text_search_chinese — 中文搜索",
+    "test_full_text_search_english — 英文搜索",
+    "test_bulk_archive — 批量归档",
+    "test_bulk_tag — 批量标签",
+    "test_asset_stats — 资产统计",
+    "test_duplicate_detection — 重复检测",
+    "test_pagination — 分页",
+    "test_family_isolation — 家庭隔离"
+  ],
+  "chinese_localization_notes": [
+    "货币格式：¥1,234.56",
+    "大数格式：¥1.23万 / ¥1.23亿",
+    "搜索支持中文分词",
+    "标签支持中文"
+  ],
+  "references": [
+    "支付宝资产管理",
+    "挖财净资产追踪",
+    "PostgreSQL中文全文搜索"
+  ],
+  "notes": "资产是系统的核心。每种资产类型有不同的元数据Schema，通过nature+utility组合确定。JSON字段存储灵活的类型特定数据。"
+}

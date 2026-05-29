@@ -1,0 +1,62 @@
+{
+  "id": "T9",
+  "name": "通知与协作系统",
+  "name_en": "Notification & Collaboration System",
+  "branch": "feat/notifications",
+  "dependencies": ["T4"],
+  "priority": "medium",
+  "status": "pending",
+  "description": "实现家庭协作的实时通知系统。包括资产变更通知、重复检测提醒、到期提醒、消耗品提醒、WebSocket实时推送。",
+  "deliverables": [
+    "backend/app/notifications/router.py — 通知API路由",
+    "backend/app/notifications/service.py — 通知业务逻辑",
+    "backend/app/notifications/schemas.py — 通知Schema",
+    "backend/app/notifications/websocket.py — WebSocket实时推送"
+  ],
+  "api_endpoints": [
+    "GET /api/notifications — 通知列表（分页、按类型筛选）",
+    "GET /api/notifications/unread-count — 未读计数",
+    "PUT /api/notifications/:id/read — 标记已读",
+    "PUT /api/notifications/read-all — 全部已读",
+    "GET /api/notifications/settings — 通知偏好",
+    "PUT /api/notifications/settings — 更新偏好",
+    "WS /ws/notifications — WebSocket实时通知"
+  ],
+  "acceptance_criteria": [
+    "资产添加通知生成",
+    "消耗品使用通知生成",
+    "重复资产检测通知生成",
+    "到期提醒通知生成",
+    "家庭邀请通知生成",
+    "未读计数正确",
+    "标记已读正确",
+    "全部已读正确",
+    "通知偏好设置正确",
+    "WebSocket连接成功",
+    "WebSocket推送实时"
+  ],
+  "tests": [
+    "test_asset_added_notification — 资产添加通知",
+    "test_consumable_used_notification — 消耗品使用通知",
+    "test_duplicate_detection_notification — 重复检测通知",
+    "test_expiry_reminder — 到期提醒",
+    "test_family_invite_notification — 邀请通知",
+    "test_unread_count — 未读计数",
+    "test_mark_read — 标记已读",
+    "test_mark_all_read — 全部已读",
+    "test_notification_preferences — 通知偏好",
+    "test_websocket_connection — WebSocket连接"
+  ],
+  "chinese_localization_notes": [
+    "通知标题中文：'{用户}添加了新资产：{资产名}'",
+    "通知标题：'{消耗品名称}库存不足'",
+    "通知标题：'{资产名称}将在{天数}天后到期'",
+    "通知标题：'{用户}邀请您加入家庭：{家庭名}'",
+    "通知分组：今天、昨天、本周、更早"
+  ],
+  "references": [
+    "支付宝消息中心",
+    "招商银行通知设计"
+  ],
+  "notes": "通知是家庭协作的核心。使用Redis Pub/Sub实现WebSocket推送。"
+}

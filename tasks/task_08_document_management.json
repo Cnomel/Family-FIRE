@@ -1,0 +1,57 @@
+{
+  "id": "T8",
+  "name": "文档管理与预览",
+  "name_en": "Document Management & Preview",
+  "branch": "feat/document-management",
+  "dependencies": ["T5"],
+  "priority": "medium",
+  "status": "pending",
+  "description": "实现文档的完整管理和在线预览。包括文件上传到MinIO、PDF预览、图片预览、缩略图生成、文档分类、保修到期追踪。",
+  "deliverables": [
+    "backend/app/documents/router.py — 文档API路由",
+    "backend/app/documents/service.py — 文档业务逻辑",
+    "backend/app/documents/schemas.py — 文档Schema",
+    "backend/app/documents/storage.py — MinIO存储服务"
+  ],
+  "api_endpoints": [
+    "POST /api/documents/upload — 上传文档（multipart/form-data）",
+    "GET /api/documents/:id — 文档信息",
+    "GET /api/documents/:id/preview — 预签名预览URL",
+    "GET /api/documents/:id/download — 预签名下载URL",
+    "DELETE /api/documents/:id — 删除文档",
+    "GET /api/assets/:id/documents — 资产关联文档"
+  ],
+  "acceptance_criteria": [
+    "PDF上传成功",
+    "图片上传成功（JPG/PNG/HEIC）",
+    "文件类型验证正确（拒绝非法类型）",
+    "文件大小限制正确（最大20MB）",
+    "缩略图自动生成",
+    "预签名URL有效（1小时）",
+    "PDF预览URL可访问",
+    "图片预览URL可访问",
+    "文档关联资产正确",
+    "保修到期追踪正确"
+  ],
+  "tests": [
+    "test_upload_pdf — 上传PDF",
+    "test_upload_image — 上传图片",
+    "test_upload_invalid_type — 非法文件类型",
+    "test_upload_oversized — 超大文件",
+    "test_thumbnail_generation — 缩略图生成",
+    "test_preview_url — 预览URL",
+    "test_download_url — 下载URL",
+    "test_delete_document — 删除文档",
+    "test_asset_documents — 资产文档列表",
+    "test_warranty_expiry_tracking — 保修到期追踪"
+  ],
+  "chinese_localization_notes": [
+    "文档类型中文：收据、保修卡、保单、合同、说明书、照片、评估报告",
+    "提示：'仅支持PDF、JPG、PNG格式'、'文件大小不能超过20MB'"
+  ],
+  "references": [
+    "MinIO Python SDK",
+    "PDF.js前端预览"
+  ],
+  "notes": "文件路径格式：{family_id}/{asset_id}/{doc_id}/{filename}。预签名URL有效期1小时。"
+}

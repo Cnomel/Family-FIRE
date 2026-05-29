@@ -1,0 +1,55 @@
+{
+  "id": "T12",
+  "name": "Flutter认证与导航",
+  "name_en": "Flutter Authentication & Navigation",
+  "branch": "feat/flutter-auth-nav",
+  "dependencies": ["T3", "T11"],
+  "priority": "medium",
+  "status": "pending",
+  "description": "实现完整的认证流程和主导航框架。包括登录/注册页面、生物识别、底部导航、首页仪表盘。",
+  "deliverables": [
+    "mobile/lib/features/auth/login_page.dart — 登录页",
+    "mobile/lib/features/auth/register_page.dart — 注册页",
+    "mobile/lib/features/auth/forgot_password_page.dart — 忘记密码页",
+    "mobile/lib/features/home/home_shell.dart — 主页框架（底部导航）",
+    "mobile/lib/features/home/dashboard_page.dart — 首页仪表盘",
+    "mobile/lib/features/settings/profile_page.dart — 个人资料页",
+    "mobile/lib/features/settings/settings_page.dart — 设置页",
+    "mobile/lib/core/auth/biometric_service.dart — 生物识别服务"
+  ],
+  "acceptance_criteria": [
+    "登录页显示正确",
+    "用户名或邮箱均可登录",
+    "注册表单验证正确",
+    "密码强度指示器显示",
+    "生物识别可用（Face ID/指纹）",
+    "底部导航5个Tab正确",
+    "首页仪表盘显示净资产Hero卡片",
+    "隐私切换功能正常",
+    "主题切换生效",
+    "语言切换生效"
+  ],
+  "tests": [
+    "test_login_page_widgets — 登录页组件",
+    "test_login_form_validation — 登录表单验证",
+    "test_register_page_widgets — 注册页组件",
+    "test_register_form_validation — 注册表单验证",
+    "test_password_strength_indicator — 密码强度",
+    "test_bottom_navigation — 底部导航",
+    "test_dashboard_hero_card — 净资产卡片",
+    "test_privacy_toggle — 隐私切换",
+    "test_theme_switch — 主题切换",
+    "test_language_switch — 语言切换"
+  ],
+  "chinese_localization_notes": [
+    "登录页：'用户名/邮箱'、'密码'、'登录'、'注册'、'忘记密码'",
+    "注册页：'用户名'、'邮箱'、'密码'、'确认密码'、'姓名'",
+    "首页：'总资产'、'净资产'、'昨日收益'",
+    "底部导航：'首页'、'资产'、'财务'、'文档'、'我的'"
+  ],
+  "references": [
+    "招商银行App登录流程",
+    "支付宝App底部导航"
+  ],
+  "notes": "登录页必须简洁高效。生物识别提升用户体验。首页仪表盘是用户看到的第一个页面，必须精心设计。"
+}
