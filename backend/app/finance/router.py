@@ -304,3 +304,117 @@ async def get_price_history(
 ):
     history = await finance_service.get_price_history(db, asset_id, days)
     return SuccessResponse(data=history)
+
+
+# ============================================================
+# FIRE Endpoints
+# ============================================================
+
+@router.get(
+    "/fire/snapshot",
+    response_model=SuccessResponse[dict],
+    summary="FIRE快照",
+    description="获取所有FIRE核心指标",
+)
+async def get_fire_snapshot(
+    family_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+    withdrawal_rate: float = 0.04,
+    expected_return: float = 0.07,
+):
+    from app.finance.fire_service import compute_fire_metrics
+    metrics = await compute_fire_metrics(db, family_id, withdrawal_rate, expected_return)
+    return SuccessResponse(data=metrics)
+
+
+@router.get(
+    "/fire/net-worth",
+    response_model=SuccessResponse[dict],
+    summary="净资产",
+    description="获取净资产分解",
+)
+async def get_net_worth(
+    family_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.finance.fire_service import compute_net_worth
+    nw = await compute_net_worth(db, family_id)
+    return SuccessResponse(data=nw)
+
+
+@router.get(
+    "/fire/allocation",
+    response_model=SuccessResponse[dict],
+    summary="资产配置",
+    description="获取资产配置分析",
+)
+async def get_allocation(
+    family_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.finance.fire_service import compute_asset_allocation
+    allocation = await compute_asset_allocation(db, family_id)
+    return SuccessResponse(data=allocation)
+
+
+@router.get(
+    "/fire/expenses",
+    summary="支出分析",
+    description="获取支出分析",
+)
+async def get_expense_analysis(
+    family_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.finance.fire_service import compute_monthly_summary
+    summary = await compute_monthly_summary(db, family_id)
+    return SuccessResponse(data=summary)
+
+
+@router.post(
+    "/fire/monte-carlo",
+    response_model=SuccessResponse[dict],
+    summary="蒙特卡洛模拟",
+    description="运行FIRE蒙特卡洛模拟",
+)
+async def run_monte_carlo(
+    family_id: str,
+    data: dict,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.finance.fire_service import compute_monthly_summary, compute_net_worth
+    from app.finance.fire_service import run_monte_carlo as mc_sim
+
+    nw = await compute_net_worth(db, family_id)
+    summary = await compute_monthly_summary(db, family_id)
+
+    result = mc_sim(
+        net_worth=nw["net_worth"],
+        annual_savings=summary["monthly_income"] * summary["savings_rate"] * 12,
+        fire_number=data.get("fire_number", summary["annual_expense"] / 0.04),
+        expected_return=data.get("expected_return", 0.07),
+        volatility=data.get("volatility", 0.15),
+        simulations=data.get("simulations", 1000),
+    )
+    return SuccessResponse(data=result)
+
+
+@router.get(
+    "/fire/passive-income",
+    response_model=SuccessResponse[dict],
+    summary="被动收入",
+    description="获取被动收入分析",
+)
+async def get_passive_income(
+    family_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.finance.fire_service import compute_passive_income
+    income = await compute_passive_income(db, family_id)
+    return SuccessResponse(data=income)
