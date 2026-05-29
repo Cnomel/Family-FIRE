@@ -613,7 +613,7 @@ async def record_price_snapshot(
         price=price,
         currency=currency,
         source=source,
-        recorded_at=datetime.now(UTC),
+        recorded_at=datetime.utcnow(),
     )
     db.add(snapshot)
     await db.flush()
@@ -624,7 +624,7 @@ async def get_price_history(
 ) -> list[dict[str, Any]]:
     """Get price history for an asset."""
     from datetime import timedelta
-    cutoff = datetime.now(UTC) - timedelta(days=days)
+    cutoff = datetime.utcnow() - timedelta(days=days)
 
     stmt = (
         select(PriceSnapshot)

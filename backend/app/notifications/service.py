@@ -144,7 +144,7 @@ async def mark_read(db: AsyncSession, notification_id: str, user_id: str) -> Non
         raise NotFoundError("通知", notification_id)
 
     notif.is_read = True
-    notif.read_at = datetime.now(UTC)
+    notif.read_at = datetime.utcnow()
     await db.flush()
 
 
@@ -153,7 +153,7 @@ async def mark_all_read(db: AsyncSession, user_id: str) -> int:
     stmt = (
         update(Notification)
         .where(Notification.user_id == user_id, Notification.is_read.is_(False))
-        .values(is_read=True, read_at=datetime.now(UTC))
+        .values(is_read=True, read_at=datetime.utcnow())
     )
     result = await db.execute(stmt)
     await db.flush()

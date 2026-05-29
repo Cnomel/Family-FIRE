@@ -67,7 +67,7 @@ class AlphaVantageProvider(PriceProvider):
                     "price": price,
                     "currency": currency,
                     "source": "alphavantage",
-                    "timestamp": datetime.now(UTC),
+                    "timestamp": datetime.utcnow(),
                 }
         except Exception as e:
             logger.error("alphavantage_error", symbol=symbol, error=str(e))
@@ -124,7 +124,7 @@ class CoinGeckoProvider(PriceProvider):
                     "price": price,
                     "currency": currency,
                     "source": "coingecko",
-                    "timestamp": datetime.now(UTC),
+                    "timestamp": datetime.utcnow(),
                 }
         except Exception as e:
             logger.error("coingecko_error", symbol=symbol, error=str(e))
@@ -171,7 +171,7 @@ class YahooFinanceProvider(PriceProvider):
                 "price": price,
                 "currency": currency,
                 "source": "yahoo",
-                "timestamp": datetime.now(UTC),
+                "timestamp": datetime.utcnow(),
             }
         except Exception as e:
             logger.error("yahoo_error", symbol=symbol, error=str(e))

@@ -37,7 +37,11 @@ def compute_current_value(
     if not config:
         config = {}
 
-    today = datetime.now(UTC)
+    today = datetime.utcnow()
+
+    # Normalize purchase_date to naive UTC
+    if purchase_date and purchase_date.tzinfo is not None:
+        purchase_date = purchase_date.replace(tzinfo=None)
 
     match trajectory:
         case "depreciating":
@@ -75,8 +79,8 @@ def _compute_depreciating(
         return purchase_price
 
     # Ensure timezone-aware comparison
-    if purchase_date.tzinfo is None:
-        purchase_date = purchase_date.replace(tzinfo=UTC)
+    if purchase_date and purchase_date.tzinfo is not None:
+        purchase_date = purchase_date.replace(tzinfo=None)
 
     method = config.get("method", "straight_line")
     rate = config.get("rate", 0.15)
@@ -136,8 +140,8 @@ def _compute_expiring(
         return renewal_cost
 
     # Ensure timezone-aware comparison
-    if end_date.tzinfo is None:
-        end_date = end_date.replace(tzinfo=UTC)
+    if end_date.tzinfo is not None:
+        end_date = end_date.replace(tzinfo=None)
 
     remaining_days = max(0, (end_date - today).days)
     total_days = config.get("total_days", 365)
@@ -193,8 +197,8 @@ def _compute_appreciating(
         return purchase_price * (1 + annual_rate)
 
     # Ensure timezone-aware comparison
-    if purchase_date.tzinfo is None:
-        purchase_date = purchase_date.replace(tzinfo=UTC)
+    if purchase_date and purchase_date.tzinfo is not None:
+        purchase_date = purchase_date.replace(tzinfo=None)
 
     age_years = (today - purchase_date).days / 365.25
     return purchase_price * ((1 + annual_rate) ** age_years)
@@ -216,8 +220,12 @@ def compute_value_history(
 
     from dateutil.relativedelta import relativedelta
 
+    # Normalize to naive UTC
+    if purchase_date.tzinfo is not None:
+        purchase_date = purchase_date.replace(tzinfo=None)
+
     history = []
-    today = datetime.now(UTC)
+    today = datetime.utcnow()
 
     for i in range(months, -1, -1):
         date = today - relativedelta(months=i)
