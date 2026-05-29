@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/theme.dart';
 import '../../core/auth/auth_repository.dart';
+import '../assets/asset_list_page.dart';
+import '../finance/fire_dashboard_page.dart';
+import '../notifications/notification_list_page.dart';
+import '../settings/settings_page.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -30,9 +34,16 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           ),
         ],
       ),
-      body: _currentIndex == 0
-          ? _buildDashboard()
-          : Center(child: Text('Tab $_currentIndex - Coming Soon')),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          _buildDashboard(),
+          const AssetListPage(),
+          const FireDashboardPage(),
+          const NotificationListPage(),
+          const SettingsPage(),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
