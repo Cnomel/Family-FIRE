@@ -19,15 +19,23 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
   final _confirmController = TextEditingController();
   final _nameController = TextEditingController();
   double _passwordStrength = 0;
+  String? _errorMessage;
 
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
 
     ref.listen(authProvider, (prev, next) {
-      if (next.error != null) {
+      if (next.error != null && next.error != _errorMessage) {
+        setState(() {
+          _errorMessage = next.error;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(next.error!), backgroundColor: AppColors.loss),
+          SnackBar(
+            content: Text(next.error!),
+            backgroundColor: AppColors.loss,
+            duration: const Duration(seconds: 3),
+          ),
         );
       }
     });
@@ -50,6 +58,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(v)) return '仅支持字母、数字、下划线';
                   return null;
                 },
+                onChanged: (_) => _clearError(),
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -61,19 +70,24 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                   if (!v!.contains('@') || !v.contains('.')) return '邮箱格式不正确';
                   return null;
                 },
+                onChanged: (_) => _clearError(),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _nameController,
                 decoration: const InputDecoration(labelText: '姓名', prefixIcon: Icon(Icons.badge)),
                 validator: (v) => v?.isEmpty ?? true ? '请输入姓名' : null,
+                onChanged: (_) => _clearError(),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _passwordController,
                 obscureText: true,
                 decoration: const InputDecoration(labelText: '密码', prefixIcon: Icon(Icons.lock)),
-                onChanged: _updatePasswordStrength,
+                onChanged: (v) {
+                  _updatePasswordStrength(v);
+                  _clearError();
+                },
                 validator: (v) {
                   if (v?.isEmpty ?? true) return '请输入密码';
                   if (v!.length < 8) return '密码至少8位';
@@ -91,13 +105,44 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
                 obscureText: true,
                 decoration: const InputDecoration(labelText: '确认密码', prefixIcon: Icon(Icons.lock_outline)),
                 validator: (v) => v != _passwordController.text ? '两次密码不一致' : null,
+                onChanged: (_) => _clearError(),
               ),
+              if (_errorMessage != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.loss.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.loss.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline, color: AppColors.loss, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: const TextStyle(color: AppColors.loss, fontSize: 14),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 32),
               ElevatedButton(
                 onPressed: authState.isLoading ? null : _handleRegister,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
                 child: authState.isLoading
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('注册'),
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('注册', style: TextStyle(fontSize: 16)),
               ),
               TextButton(
                 onPressed: () => context.pop(),
@@ -152,8 +197,16 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     setState(() => _passwordStrength = strength);
   }
 
+  void _clearError() {
+    if (_errorMessage != null) {
+      setState(() => _errorMessage = null);
+      ref.read(authProvider.notifier).clearError();
+    }
+  }
+
   void _handleRegister() {
     if (!_formKey.currentState!.validate()) return;
+    _clearError();
     ref.read(authProvider.notifier).register(
       _usernameController.text.trim(),
       _emailController.text.trim(),

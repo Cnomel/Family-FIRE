@@ -19,6 +19,8 @@ class ApiException implements Exception {
         return ApiException(message: '网络连接失败，请检查网络', code: 'NETWORK_ERROR');
       case DioExceptionType.badResponse:
         return _fromResponse(e.response);
+      case DioExceptionType.cancel:
+        return ApiException(message: '请求已取消', code: 'CANCELLED');
       default:
         return ApiException(message: '请求失败: ${e.message}', code: 'UNKNOWN');
     }
@@ -37,6 +39,7 @@ class ApiException implements Exception {
     String message = '请求失败';
     String code = 'ERROR';
 
+    // Parse error message from server response
     if (data is Map<String, dynamic>) {
       final error = data['error'];
       if (error is Map<String, dynamic>) {
@@ -45,25 +48,30 @@ class ApiException implements Exception {
       }
     }
 
+    // Override with status-specific messages if no custom message
     switch (response.statusCode) {
       case 400:
-        message = message.isEmpty ? '请求参数错误' : message;
+        if (message == '请求失败') message = '请求参数错误';
         break;
       case 401:
-        message = '未授权，请重新登录';
+        // Keep the server message (e.g., "用户名/邮箱或密码错误")
+        if (message == '请求失败') message = '用户名/邮箱或密码错误';
         code = 'UNAUTHORIZED';
         break;
       case 403:
-        message = message.isEmpty ? '权限不足' : message;
+        if (message == '请求失败') message = '权限不足';
         break;
       case 404:
-        message = '资源不存在';
+        if (message == '请求失败') message = '资源不存在';
         break;
       case 409:
-        message = message.isEmpty ? '资源已存在' : message;
+        // Keep server message for duplicate errors
         break;
       case 422:
-        message = message.isEmpty ? '数据验证失败' : message;
+        // Keep server message for validation errors
+        break;
+      case 423:
+        // Account locked
         break;
       case 429:
         message = '请求过于频繁，请稍后重试';
@@ -127,20 +135,28 @@ class _AuthInterceptor extends Interceptor {
   final Dio _dio;
   bool _isRefreshing = false;
 
+  // Paths that should not trigger token refresh
+  static const _publicPaths = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/password/forgot', '/auth/password/reset'];
+
   _AuthInterceptor(this._storage, this._dio);
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
-    final token = await _storage.read(key: 'access_token');
-    if (token != null) {
-      options.headers['Authorization'] = 'Bearer $token';
+    // Don't add token for public endpoints
+    if (!_publicPaths.any((p) => options.path.contains(p))) {
+      final token = await _storage.read(key: 'access_token');
+      if (token != null) {
+        options.headers['Authorization'] = 'Bearer $token';
+      }
     }
     handler.next(options);
   }
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    if (err.response?.statusCode == 401 && !_isRefreshing) {
+    // Don't try to refresh for public endpoints or if already refreshing
+    final isPublicPath = _publicPaths.any((p) => err.requestOptions.path.contains(p));
+    if (err.response?.statusCode == 401 && !_isRefreshing && !isPublicPath) {
       _isRefreshing = true;
       try {
         final refreshToken = await _storage.read(key: 'refresh_token');
@@ -150,9 +166,10 @@ class _AuthInterceptor extends Interceptor {
           return;
         }
 
-        final response = await _dio.post('/auth/refresh', data: {
-          'refresh_token': refreshToken,
-        });
+        final response = await Dio().post(
+          '${_dio.options.baseUrl}/auth/refresh',
+          data: {'refresh_token': refreshToken},
+        );
 
         if (response.statusCode == 200) {
           final data = response.data['data'];

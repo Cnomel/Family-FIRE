@@ -16,6 +16,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _identifierController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  String? _errorMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -26,10 +27,30 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       if (next.isAuthenticated) {
         context.go('/home');
       }
-      if (next.error != null) {
+      if (next.error != null && next.error != _errorMessage) {
+        setState(() {
+          _errorMessage = next.error;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(next.error!), backgroundColor: AppColors.loss),
+          SnackBar(
+            content: Text(next.error!),
+            backgroundColor: AppColors.loss,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(
+              label: '关闭',
+              textColor: Colors.white,
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
         );
+        // Clear error after showing
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            ref.read(authProvider.notifier).clearError();
+          }
+        });
       }
     });
 
@@ -58,6 +79,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     prefixIcon: Icon(Icons.person),
                   ),
                   validator: (v) => v?.isEmpty ?? true ? '请输入用户名或邮箱' : null,
+                  onChanged: (_) => _clearError(),
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -72,13 +94,44 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                   ),
                   validator: (v) => v?.isEmpty ?? true ? '请输入密码' : null,
+                  onChanged: (_) => _clearError(),
                 ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.loss.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.loss.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error_outline, color: AppColors.loss, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _errorMessage!,
+                            style: const TextStyle(color: AppColors.loss, fontSize: 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: authState.isLoading ? null : _handleLogin,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
                   child: authState.isLoading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : const Text('登录'),
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('登录', style: TextStyle(fontSize: 16)),
                 ),
                 const SizedBox(height: 16),
                 TextButton(
@@ -97,8 +150,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     );
   }
 
+  void _clearError() {
+    if (_errorMessage != null) {
+      setState(() => _errorMessage = null);
+      ref.read(authProvider.notifier).clearError();
+    }
+  }
+
   void _handleLogin() {
     if (!_formKey.currentState!.validate()) return;
+    _clearError();
     ref.read(authProvider.notifier).login(
       _identifierController.text.trim(),
       _passwordController.text,
