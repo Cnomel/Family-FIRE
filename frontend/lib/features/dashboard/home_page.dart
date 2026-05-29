@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/api.dart';
 import '../../core/theme.dart';
 import '../../core/formatters.dart';
+import '../assets/assets_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -37,7 +38,7 @@ class _HomePageState extends State<HomePage> {
         index: _currentIndex,
         children: [
           DashboardTab(privacy: _privacy),
-          const Center(child: Text('资产 - 开发中', style: TextStyle(fontSize: 18, color: kText2))),
+          AssetsTab(privacy: _privacy),
           const Center(child: Text('财务 - 开发中', style: TextStyle(fontSize: 18, color: kText2))),
           const Center(child: Text('设置 - 开发中', style: TextStyle(fontSize: 18, color: kText2))),
         ],
