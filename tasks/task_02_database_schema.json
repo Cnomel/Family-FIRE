@@ -1,0 +1,48 @@
+{
+  "id": "T2",
+  "name": "数据库Schema与迁移",
+  "name_en": "Database Schema & Migrations",
+  "branch": "feat/database-schema",
+  "dependencies": ["T1"],
+  "priority": "high",
+  "status": "pending",
+  "description": "设计并创建所有数据库表，包含完整的约束、索引和种子数据。约20张核心表覆盖用户、家庭、资产、负债、财务、文档、通知等全部业务。",
+  "deliverables": [
+    "backend/app/common/models.py — 基础模型（TimestampMixin, SoftDeleteMixin）",
+    "backend/app/users/models.py — User模型",
+    "backend/app/families/models.py — Family, FamilyMember模型",
+    "backend/app/assets/models.py — Asset, AssetFinancial, AssetLifecycle, AssetRelationship, 9种元数据表",
+    "backend/app/finance/models.py — Liability, Transaction, IncomeExpenseRecord, ExpenseCategory, IncomeCategory, PriceSnapshot",
+    "backend/app/documents/models.py — AssetDocument模型",
+    "backend/app/notifications/models.py — Notification, NotificationPreference模型",
+    "alembic/versions/001_initial_schema.py — 初始迁移脚本",
+    "backend/app/common/seed.py — 种子数据（支出/收入分类、系统配置、Admin用户）"
+  ],
+  "acceptance_criteria": [
+    "所有表通过Alembic迁移创建成功",
+    "外键约束正确",
+    "索引创建成功",
+    "种子数据插入成功",
+    "中文分类数据完整（餐饮美食、交通出行等8大类+子类）"
+  ],
+  "tests": [
+    "test_create_user — 创建用户记录",
+    "test_create_family — 创建家庭记录",
+    "test_create_asset — 创建资产记录",
+    "test_create_liability — 创建负债记录",
+    "test_seed_categories — 种子分类数据完整",
+    "test_foreign_key_constraints — 外键约束验证"
+  ],
+  "chinese_localization_notes": [
+    "支出分类参考支付宝/随手记：餐饮美食、交通出行、购物消费、居住生活、医疗健康、教育培训、休闲娱乐、人情往来",
+    "收入分类：工资薪金、奖金、投资收益、副业收入、租金收入",
+    "负债分类：房贷、车贷、信用卡、消费贷、个人借款",
+    "分类表包含name(中文)和name_en(英文)字段"
+  ],
+  "references": [
+    "支付宝支出分类体系",
+    "随手记分类设计",
+    "PostgreSQL索引最佳实践"
+  ],
+  "notes": "数据库设计是整个系统的基础，必须考虑周全。JSON字段用于灵活的配置数据（如生命周期配置、价格源配置）。"
+}
