@@ -39,20 +39,33 @@ def test_settings() -> Settings:
 async def test_engine(test_settings):
     """Create test database engine and tables."""
     # Import all models to register them
-    from app.users.models import User, SystemSettings  # noqa: F401
-    from app.families.models import Family, FamilyMember  # noqa: F401
     from app.assets.models import (  # noqa: F401
-        Asset, AssetFinancial, AssetLifecycle, AssetRelationship,
-        AssetMetadataVehicle, AssetMetadataRealEstate, AssetMetadataElectronics,
-        AssetMetadataFurniture, AssetMetadataInsurance, AssetMetadataFinancial,
-        AssetMetadataSubscription, AssetMetadataAccount, AssetMetadataConsumable,
-    )
-    from app.finance.models import (  # noqa: F401
-        Liability, Transaction, ExpenseCategory, IncomeCategory,
-        IncomeExpenseRecord, PriceSnapshot,
+        Asset,
+        AssetFinancial,
+        AssetLifecycle,
+        AssetMetadataAccount,
+        AssetMetadataConsumable,
+        AssetMetadataElectronics,
+        AssetMetadataFinancial,
+        AssetMetadataFurniture,
+        AssetMetadataInsurance,
+        AssetMetadataRealEstate,
+        AssetMetadataSubscription,
+        AssetMetadataVehicle,
+        AssetRelationship,
     )
     from app.documents.models import AssetDocument  # noqa: F401
+    from app.families.models import Family, FamilyMember  # noqa: F401
+    from app.finance.models import (  # noqa: F401
+        ExpenseCategory,
+        IncomeCategory,
+        IncomeExpenseRecord,
+        Liability,
+        PriceSnapshot,
+        Transaction,
+    )
     from app.notifications.models import Notification, NotificationPreference  # noqa: F401
+    from app.users.models import SystemSettings, User  # noqa: F401
 
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -92,15 +105,6 @@ async def client(test_db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield test_db
 
     app.dependency_overrides[get_db] = override_get_db
-
-    # Disable rate limiting for tests
-    for middleware in app.user_middleware:
-        if hasattr(middleware, "cls") and middleware.cls.__name__ == "RateLimitMiddleware":
-            pass
-    # Find and disable rate limiter in middleware stack
-    from app.common.middleware import RateLimitMiddleware
-    for mw in getattr(app, "middleware_stack", []).__class__.__mro__:
-        pass
 
     # Simply set a flag on the app to disable rate limiting
     app.state.rate_limit_disabled = True

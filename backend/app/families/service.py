@@ -3,7 +3,7 @@
 import random
 import string
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -107,7 +107,7 @@ async def create_family(
         family_id=family_id,
         user_id=user_id,
         role="admin",
-        joined_at=datetime.now(timezone.utc),
+        joined_at=datetime.now(UTC),
     )
     db.add(member)
 
@@ -303,7 +303,7 @@ async def generate_invite_code(
     expiry_days = int(expiry_days_str)
 
     family.invite_code = _generate_invite_code()
-    family.invite_code_expires_at = datetime.now(timezone.utc) + timedelta(days=expiry_days)
+    family.invite_code_expires_at = datetime.now(UTC) + timedelta(days=expiry_days)
     await db.flush()
 
     logger.info("invite_code_generated", family_id=family_id, code=family.invite_code)
@@ -335,8 +335,8 @@ async def join_family(
     if family.invite_code_expires_at:
         expires_at = family.invite_code_expires_at
         if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
-        if expires_at < datetime.now(timezone.utc):
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if expires_at < datetime.now(UTC):
             raise ValidationError("邀请码已过期")
 
     # Check if already a member
@@ -354,7 +354,7 @@ async def join_family(
         family_id=family.id,
         user_id=user_id,
         role="member",
-        joined_at=datetime.now(timezone.utc),
+        joined_at=datetime.now(UTC),
     )
     db.add(member)
     await db.flush()

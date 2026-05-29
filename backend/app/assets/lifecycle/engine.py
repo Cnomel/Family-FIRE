@@ -3,7 +3,7 @@
 Each calculator computes the current value of an asset based on its lifecycle trajectory.
 """
 
-from datetime import UTC, datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from app.common.logging import get_logger
@@ -76,7 +76,7 @@ def _compute_depreciating(
 
     # Ensure timezone-aware comparison
     if purchase_date.tzinfo is None:
-        purchase_date = purchase_date.replace(tzinfo=timezone.utc)
+        purchase_date = purchase_date.replace(tzinfo=UTC)
 
     method = config.get("method", "straight_line")
     rate = config.get("rate", 0.15)
@@ -137,7 +137,7 @@ def _compute_expiring(
 
     # Ensure timezone-aware comparison
     if end_date.tzinfo is None:
-        end_date = end_date.replace(tzinfo=timezone.utc)
+        end_date = end_date.replace(tzinfo=UTC)
 
     remaining_days = max(0, (end_date - today).days)
     total_days = config.get("total_days", 365)
@@ -194,7 +194,7 @@ def _compute_appreciating(
 
     # Ensure timezone-aware comparison
     if purchase_date.tzinfo is None:
-        purchase_date = purchase_date.replace(tzinfo=timezone.utc)
+        purchase_date = purchase_date.replace(tzinfo=UTC)
 
     age_years = (today - purchase_date).days / 365.25
     return purchase_price * ((1 + annual_rate) ** age_years)
