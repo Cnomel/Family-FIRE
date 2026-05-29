@@ -1,65 +1,106 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter/foundation.dart';
+
+class ApiException implements Exception {
+  final int? statusCode;
+  final String message;
+  final String code;
+
+  ApiException({this.statusCode, required this.message, this.code = 'UNKNOWN'});
+
+  factory ApiException.fromDioError(DioException e) {
+    switch (e.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return ApiException(message: '连接超时，请检查网络', code: 'TIMEOUT');
+      case DioExceptionType.connectionError:
+        return ApiException(message: '网络连接失败，请检查网络', code: 'NETWORK_ERROR');
+      case DioExceptionType.badResponse:
+        return _fromResponse(e.response);
+      default:
+        return ApiException(message: '请求失败: ${e.message}', code: 'UNKNOWN');
+    }
+  }
+
+  factory ApiException.fromResponse(Response? response) {
+    return _fromResponse(response);
+  }
+
+  static ApiException _fromResponse(Response? response) {
+    if (response == null) {
+      return ApiException(message: '服务器无响应', code: 'NO_RESPONSE');
+    }
+
+    final data = response.data;
+    String message = '请求失败';
+    String code = 'ERROR';
+
+    if (data is Map<String, dynamic>) {
+      final error = data['error'];
+      if (error is Map<String, dynamic>) {
+        message = error['message'] ?? '请求失败';
+        code = error['code'] ?? 'ERROR';
+      }
+    }
+
+    switch (response.statusCode) {
+      case 400:
+        message = message.isEmpty ? '请求参数错误' : message;
+        break;
+      case 401:
+        message = '未授权，请重新登录';
+        code = 'UNAUTHORIZED';
+        break;
+      case 403:
+        message = message.isEmpty ? '权限不足' : message;
+        break;
+      case 404:
+        message = '资源不存在';
+        break;
+      case 409:
+        message = message.isEmpty ? '资源已存在' : message;
+        break;
+      case 422:
+        message = message.isEmpty ? '数据验证失败' : message;
+        break;
+      case 429:
+        message = '请求过于频繁，请稍后重试';
+        break;
+      case 500:
+        message = '服务器内部错误';
+        break;
+    }
+
+    return ApiException(statusCode: response.statusCode, message: message, code: code);
+  }
+
+  @override
+  String toString() => message;
+}
 
 class ApiClient {
-  static const String baseUrl = 'http://10.0.2.2:8000/api';
+  static const String _defaultBaseUrl = 'http://10.0.2.2:8000/api';
   late final Dio _dio;
   final _storage = const FlutterSecureStorage();
+  final String baseUrl;
 
-  ApiClient() {
+  ApiClient({String? baseUrl}) : baseUrl = baseUrl ?? _defaultBaseUrl {
     _dio = Dio(BaseOptions(
-      baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
+      baseUrl: this.baseUrl,
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 15),
       headers: {'Content-Type': 'application/json'},
     ));
 
-    _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) async {
-        final token = await _storage.read(key: 'access_token');
-        if (token != null) {
-          options.headers['Authorization'] = 'Bearer $token';
-        }
-        handler.next(options);
-      },
-      onError: (error, handler) async {
-        if (error.response?.statusCode == 401) {
-          // Try refresh token
-          final refreshed = await _refreshToken();
-          if (refreshed) {
-            // Retry original request
-            final response = await _dio.fetch(error.requestOptions);
-            handler.resolve(response);
-            return;
-          }
-        }
-        handler.next(error);
-      },
-    ));
+    _dio.interceptors.addAll([
+      _AuthInterceptor(_storage, _dio),
+      _LogInterceptor(),
+    ]);
   }
 
   Dio get dio => _dio;
-
-  Future<bool> _refreshToken() async {
-    try {
-      final refreshToken = await _storage.read(key: 'refresh_token');
-      if (refreshToken == null) return false;
-
-      final response = await Dio().post('$baseUrl/auth/refresh', data: {
-        'refresh_token': refreshToken,
-      });
-
-      if (response.statusCode == 200) {
-        final data = response.data['data'];
-        await _storage.write(key: 'access_token', value: data['access_token']);
-        await _storage.write(key: 'refresh_token', value: data['refresh_token']);
-        return true;
-      }
-      return false;
-    } catch (e) {
-      return false;
-    }
-  }
 
   Future<void> saveTokens(String accessToken, String refreshToken) async {
     await _storage.write(key: 'access_token', value: accessToken);
@@ -73,6 +114,90 @@ class ApiClient {
 
   Future<bool> hasToken() async {
     final token = await _storage.read(key: 'access_token');
-    return token != null;
+    return token != null && token.isNotEmpty;
+  }
+
+  Future<String?> getAccessToken() async {
+    return _storage.read(key: 'access_token');
+  }
+}
+
+class _AuthInterceptor extends Interceptor {
+  final FlutterSecureStorage _storage;
+  final Dio _dio;
+  bool _isRefreshing = false;
+
+  _AuthInterceptor(this._storage, this._dio);
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+    final token = await _storage.read(key: 'access_token');
+    if (token != null) {
+      options.headers['Authorization'] = 'Bearer $token';
+    }
+    handler.next(options);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) async {
+    if (err.response?.statusCode == 401 && !_isRefreshing) {
+      _isRefreshing = true;
+      try {
+        final refreshToken = await _storage.read(key: 'refresh_token');
+        if (refreshToken == null) {
+          await _storage.deleteAll();
+          handler.next(err);
+          return;
+        }
+
+        final response = await _dio.post('/auth/refresh', data: {
+          'refresh_token': refreshToken,
+        });
+
+        if (response.statusCode == 200) {
+          final data = response.data['data'];
+          await _storage.write(key: 'access_token', value: data['access_token']);
+          await _storage.write(key: 'refresh_token', value: data['refresh_token']);
+
+          // Retry original request
+          final opts = err.requestOptions;
+          opts.headers['Authorization'] = 'Bearer ${data['access_token']}';
+          final retryResponse = await _dio.fetch(opts);
+          handler.resolve(retryResponse);
+          return;
+        }
+      } catch (e) {
+        await _storage.deleteAll();
+      } finally {
+        _isRefreshing = false;
+      }
+    }
+    handler.next(err);
+  }
+}
+
+class _LogInterceptor extends Interceptor {
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    if (kDebugMode) {
+      print('[API] ${options.method} ${options.uri}');
+    }
+    handler.next(options);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    if (kDebugMode) {
+      print('[API] ${response.statusCode} ${response.requestOptions.uri}');
+    }
+    handler.next(response);
+  }
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    if (kDebugMode) {
+      print('[API ERROR] ${err.response?.statusCode} ${err.requestOptions.uri}: ${err.message}');
+    }
+    handler.next(err);
   }
 }
