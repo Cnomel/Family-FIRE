@@ -1,5 +1,6 @@
 """Asset management API router."""
 
+from app.families.dependencies import verify_family_member
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,10 +31,10 @@ router = APIRouter()
     description="在指定家庭中创建新资产（自动检测重复）",
 )
 async def create_asset(
-    family_id: str,
     data: CreateAssetRequest,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     asset = await asset_service.create_asset(db, family_id, current_user.id, data)
     return SuccessResponse(data=asset, message="资产创建成功")
@@ -46,8 +47,7 @@ async def create_asset(
     description="获取家庭资产列表（支持高级筛选和分页）",
 )
 async def list_assets(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
     nature: str | None = None,
     utility: str | None = None,
@@ -57,6 +57,7 @@ async def list_assets(
     search: str | None = None,
     page: int = 1,
     page_size: int = 20,
+    family_id: str = Depends(verify_family_member),
 ):
     filters = AssetFilterParams(
         nature=nature,
@@ -79,9 +80,9 @@ async def list_assets(
     description="获取家庭资产按维度分组的统计数据",
 )
 async def get_asset_stats(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     stats = await asset_service.get_asset_stats(db, family_id, current_user.id)
     return SuccessResponse(data=stats)
@@ -94,9 +95,9 @@ async def get_asset_stats(
     description="获取家庭资产使用的所有标签及计数",
 )
 async def get_all_tags(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     tags = await asset_service.get_all_tags(db, family_id, current_user.id)
     return SuccessResponse(data=tags)
@@ -109,9 +110,9 @@ async def get_all_tags(
     description="获取家庭资产的完整关系图谱（节点+边）",
 )
 async def get_relationship_graph(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     from app.assets import relationships as rel_service
     graph = await rel_service.get_relationship_graph(db, family_id, current_user.id)
@@ -125,9 +126,9 @@ async def get_relationship_graph(
     description="分析高价值资产的保险覆盖缺口",
 )
 async def get_insurance_gaps(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     from app.assets import relationships as rel_service
     gaps = await rel_service.analyze_insurance_gaps(db, family_id, current_user.id)
@@ -152,10 +153,10 @@ async def get_relationship_types():
     description="获取资产的完整信息（含元数据、关系、文档）",
 )
 async def get_asset(
-    family_id: str,
     asset_id: str,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     detail = await asset_service.get_asset_detail(db, asset_id, family_id, current_user.id)
     return SuccessResponse(data=detail)
@@ -168,11 +169,11 @@ async def get_asset(
     description="更新资产信息",
 )
 async def update_asset(
-    family_id: str,
     asset_id: str,
     data: UpdateAssetRequest,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     asset = await asset_service.update_asset(db, asset_id, family_id, current_user.id, data)
     return SuccessResponse(data=asset, message="更新成功")
@@ -185,10 +186,10 @@ async def update_asset(
     description="软删除（归档）资产",
 )
 async def delete_asset(
-    family_id: str,
     asset_id: str,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     await asset_service.delete_asset(db, asset_id, family_id, current_user.id)
     return MessageResponse(message="资产已归档")
@@ -201,10 +202,10 @@ async def delete_asset(
     description="批量归档/删除/打标签",
 )
 async def bulk_action(
-    family_id: str,
-    data: BulkActionRequest,
-    current_user: CurrentUser,
+        data: BulkActionRequest,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     result = await asset_service.bulk_action(db, family_id, current_user.id, data)
     return SuccessResponse(data=result, message=f"批量操作完成: {result['success_count']}/{result['total']}")
@@ -217,11 +218,11 @@ async def bulk_action(
     description="为资产添加标签",
 )
 async def add_tag(
-    family_id: str,
     asset_id: str,
     data: AddTagRequest,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     await asset_service.add_tag(db, asset_id, family_id, current_user.id, data.tag)
     return MessageResponse(message="标签已添加")
@@ -234,11 +235,11 @@ async def add_tag(
     description="从资产删除标签",
 )
 async def remove_tag(
-    family_id: str,
     asset_id: str,
     tag: str,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     await asset_service.remove_tag(db, asset_id, family_id, current_user.id, tag)
     return MessageResponse(message="标签已删除")
@@ -255,10 +256,10 @@ async def remove_tag(
     description="获取资产的生命周期配置和当前计算值",
 )
 async def get_lifecycle(
-    family_id: str,
     asset_id: str,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     from app.assets.lifecycle.engine import compute_current_value
     from app.assets.models import AssetLifecycle
@@ -317,11 +318,11 @@ async def get_lifecycle(
     description="更新资产的生命周期配置参数",
 )
 async def update_lifecycle(
-    family_id: str,
     asset_id: str,
     data: dict,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     from sqlalchemy import select
 
@@ -363,11 +364,11 @@ async def update_lifecycle(
     description="获取资产的价值变化时间序列",
 )
 async def get_value_history(
-    family_id: str,
     asset_id: str,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
     months: int = 12,
+    family_id: str = Depends(verify_family_member),
 ):
     from sqlalchemy import select
 
@@ -416,10 +417,10 @@ async def get_value_history(
     description="获取资产的所有关联关系",
 )
 async def get_relationships(
-    family_id: str,
     asset_id: str,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     from app.assets import relationships as rel_service
     rels = await rel_service.get_asset_relationships(db, family_id, current_user.id, asset_id)
@@ -434,11 +435,11 @@ async def get_relationships(
     description="创建资产间的关联关系",
 )
 async def create_relationship(
-    family_id: str,
     asset_id: str,
     data: dict,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     from app.assets import relationships as rel_service
     rel = await rel_service.create_relationship(
@@ -461,11 +462,11 @@ async def create_relationship(
     description="删除资产间的关联关系",
 )
 async def delete_relationship(
-    family_id: str,
     asset_id: str,
     rel_id: str,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     from app.assets import relationships as rel_service
     await rel_service.delete_relationship(db, family_id, current_user.id, rel_id)

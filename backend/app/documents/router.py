@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+from app.families.dependencies import verify_family_member_query as verify_family_member
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,7 +22,7 @@ router = APIRouter()
     description="上传文档到MinIO（支持PDF、JPG、PNG、HEIC，最大20MB）",
 )
 async def upload_document(
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
     family_id: str = Form(..., description="家庭ID"),
     file: UploadFile = File(..., description="文件"),
@@ -56,8 +57,8 @@ async def upload_document(
 )
 async def get_document(
     doc_id: str,
-    family_id: str,
-    current_user: CurrentUser,
+    family_id: str = Depends(verify_family_member),
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
 ):
     doc = await doc_service.get_document(db, doc_id, family_id, current_user.id)
@@ -72,8 +73,8 @@ async def get_document(
 )
 async def list_asset_documents(
     asset_id: str,
-    family_id: str,
-    current_user: CurrentUser,
+    family_id: str = Depends(verify_family_member),
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
 ):
     docs = await doc_service.list_asset_documents(db, asset_id, family_id, current_user.id)
@@ -88,8 +89,8 @@ async def list_asset_documents(
 )
 async def delete_document(
     doc_id: str,
-    family_id: str,
-    current_user: CurrentUser,
+    family_id: str = Depends(verify_family_member),
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
 ):
     await doc_service.delete_document(db, doc_id, family_id, current_user.id)

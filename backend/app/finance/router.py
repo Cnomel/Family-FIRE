@@ -2,6 +2,7 @@
 
 from datetime import datetime
 
+from app.families.dependencies import verify_family_member
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,10 +39,10 @@ router = APIRouter()
     description="创建新的负债记录（房贷、车贷、信用卡等）",
 )
 async def create_liability(
-    family_id: str,
-    data: CreateLiabilityRequest,
-    current_user: CurrentUser,
+        data: CreateLiabilityRequest,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     liability = await finance_service.create_liability(db, family_id, current_user.id, data)
     return SuccessResponse(data=liability, message="负债记录创建成功")
@@ -54,9 +55,9 @@ async def create_liability(
     description="获取家庭所有负债",
 )
 async def list_liabilities(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     result = await finance_service.list_liabilities(db, family_id, current_user.id)
     return SuccessResponse(data=result)
@@ -69,11 +70,11 @@ async def list_liabilities(
     description="更新负债信息",
 )
 async def update_liability(
-    family_id: str,
     liability_id: str,
     data: UpdateLiabilityRequest,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     liability = await finance_service.update_liability(db, liability_id, family_id, current_user.id, data)
     return SuccessResponse(data=liability, message="更新成功")
@@ -86,10 +87,10 @@ async def update_liability(
     description="标记负债为已还清",
 )
 async def delete_liability(
-    family_id: str,
     liability_id: str,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     await finance_service.delete_liability(db, liability_id, family_id, current_user.id)
     return MessageResponse(message="负债已标记为还清")
@@ -107,10 +108,10 @@ async def delete_liability(
     description="记录收入或支出",
 )
 async def create_income_expense(
-    family_id: str,
-    data: CreateIncomeExpenseRequest,
-    current_user: CurrentUser,
+        data: CreateIncomeExpenseRequest,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     record = await finance_service.create_income_expense(db, family_id, current_user.id, data)
     return SuccessResponse(data=record, message="记录成功")
@@ -123,14 +124,14 @@ async def create_income_expense(
     description="获取收支记录列表（支持筛选）",
 )
 async def list_income_expense(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
     type: str | None = None,
     start_date: datetime | None = None,
     end_date: datetime | None = None,
     page: int = 1,
     page_size: int = 20,
+    family_id: str = Depends(verify_family_member),
 ):
     result = await finance_service.list_income_expense(
         db, family_id, current_user.id,
@@ -147,11 +148,11 @@ async def list_income_expense(
     description="获取收支汇总统计",
 )
 async def get_income_expense_summary(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
     start_date: datetime | None = None,
     end_date: datetime | None = None,
+    family_id: str = Depends(verify_family_member),
 ):
     summary = await finance_service.get_income_expense_summary(
         db, family_id, current_user.id,
@@ -167,11 +168,11 @@ async def get_income_expense_summary(
     description="更新收支记录",
 )
 async def update_income_expense(
-    family_id: str,
     record_id: str,
     data: UpdateIncomeExpenseRequest,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     record = await finance_service.update_income_expense(
         db, record_id, family_id, current_user.id, data,
@@ -186,10 +187,10 @@ async def update_income_expense(
     description="删除收支记录",
 )
 async def delete_income_expense(
-    family_id: str,
     record_id: str,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     await finance_service.delete_income_expense(db, record_id, family_id, current_user.id)
     return MessageResponse(message="记录已删除")
@@ -206,7 +207,7 @@ async def delete_income_expense(
     description="获取标准支出分类（含子分类）",
 )
 async def get_expense_categories(
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
 ):
     categories = await finance_service.get_expense_categories(db)
@@ -220,7 +221,7 @@ async def get_expense_categories(
     description="获取标准收入分类（含子分类）",
 )
 async def get_income_categories(
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
 ):
     categories = await finance_service.get_income_categories(db)
@@ -239,10 +240,10 @@ async def get_income_categories(
     description="记录投资交易（买入/卖出/分红等）",
 )
 async def create_transaction(
-    family_id: str,
-    data: CreateTransactionRequest,
-    current_user: CurrentUser,
+        data: CreateTransactionRequest,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     transaction = await finance_service.create_transaction(db, family_id, current_user.id, data)
     return SuccessResponse(data=transaction, message="交易记录成功")
@@ -255,12 +256,12 @@ async def create_transaction(
     description="获取投资交易记录",
 )
 async def list_transactions(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
     asset_id: str | None = None,
     page: int = 1,
     page_size: int = 20,
+    family_id: str = Depends(verify_family_member),
 ):
     result = await finance_service.list_transactions(
         db, family_id, current_user.id,
@@ -276,11 +277,11 @@ async def list_transactions(
     description="获取资产的成本基础（FIFO/LIFO/平均成本）",
 )
 async def get_cost_basis(
-    family_id: str,
     asset_id: str,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
     method: str = Query("average_cost", pattern="^(fifo|lifo|average_cost)$"),
+    family_id: str = Depends(verify_family_member),
 ):
     result = await finance_service.get_cost_basis(db, family_id, current_user.id, asset_id, method)
     return SuccessResponse(data=result)
@@ -298,7 +299,7 @@ async def get_cost_basis(
 )
 async def get_price_history(
     asset_id: str,
-    current_user: CurrentUser,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
     days: int = 30,
 ):
@@ -317,11 +318,11 @@ async def get_price_history(
     description="获取所有FIRE核心指标",
 )
 async def get_fire_snapshot(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
     withdrawal_rate: float = 0.04,
     expected_return: float = 0.07,
+    family_id: str = Depends(verify_family_member),
 ):
     from app.finance.fire_service import compute_fire_metrics
     metrics = await compute_fire_metrics(db, family_id, withdrawal_rate, expected_return)
@@ -335,9 +336,9 @@ async def get_fire_snapshot(
     description="获取净资产分解",
 )
 async def get_net_worth(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     from app.finance.fire_service import compute_net_worth
     nw = await compute_net_worth(db, family_id)
@@ -351,9 +352,9 @@ async def get_net_worth(
     description="获取资产配置分析",
 )
 async def get_allocation(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     from app.finance.fire_service import compute_asset_allocation
     allocation = await compute_asset_allocation(db, family_id)
@@ -366,9 +367,9 @@ async def get_allocation(
     description="获取支出分析",
 )
 async def get_expense_analysis(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     from app.finance.fire_service import compute_monthly_summary
     summary = await compute_monthly_summary(db, family_id)
@@ -382,10 +383,10 @@ async def get_expense_analysis(
     description="运行FIRE蒙特卡洛模拟",
 )
 async def run_monte_carlo(
-    family_id: str,
-    data: dict,
-    current_user: CurrentUser,
+        data: dict,
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     from app.finance.fire_service import compute_monthly_summary, compute_net_worth
     from app.finance.fire_service import run_monte_carlo as mc_sim
@@ -411,9 +412,9 @@ async def run_monte_carlo(
     description="获取被动收入分析",
 )
 async def get_passive_income(
-    family_id: str,
-    current_user: CurrentUser,
+        current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
 ):
     from app.finance.fire_service import compute_passive_income
     income = await compute_passive_income(db, family_id)

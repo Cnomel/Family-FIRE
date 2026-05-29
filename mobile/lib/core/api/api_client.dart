@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiException implements Exception {
   final int? statusCode;
@@ -39,7 +39,6 @@ class ApiException implements Exception {
     String message = '请求失败';
     String code = 'ERROR';
 
-    // Parse error message from server response
     if (data is Map<String, dynamic>) {
       final error = data['error'];
       if (error is Map<String, dynamic>) {
@@ -48,13 +47,11 @@ class ApiException implements Exception {
       }
     }
 
-    // Override with status-specific messages if no custom message
     switch (response.statusCode) {
       case 400:
         if (message == '请求失败') message = '请求参数错误';
         break;
       case 401:
-        // Keep the server message (e.g., "用户名/邮箱或密码错误")
         if (message == '请求失败') message = '用户名/邮箱或密码错误';
         code = 'UNAUTHORIZED';
         break;
@@ -65,13 +62,10 @@ class ApiException implements Exception {
         if (message == '请求失败') message = '资源不存在';
         break;
       case 409:
-        // Keep server message for duplicate errors
         break;
       case 422:
-        // Keep server message for validation errors
         break;
       case 423:
-        // Account locked
         break;
       case 429:
         message = '请求过于频繁，请稍后重试';
@@ -89,12 +83,12 @@ class ApiException implements Exception {
 }
 
 class ApiClient {
-  static const String _defaultBaseUrl = 'http://10.0.2.2:8000/api';
   late final Dio _dio;
   final _storage = const FlutterSecureStorage();
   final String baseUrl;
 
-  ApiClient({String? baseUrl}) : baseUrl = baseUrl ?? _defaultBaseUrl {
+  ApiClient({String? baseUrl})
+      : baseUrl = baseUrl ?? _getDefaultBaseUrl() {
     _dio = Dio(BaseOptions(
       baseUrl: this.baseUrl,
       connectTimeout: const Duration(seconds: 15),
@@ -104,8 +98,16 @@ class ApiClient {
 
     _dio.interceptors.addAll([
       _AuthInterceptor(_storage, _dio),
-      _LogInterceptor(),
+      if (kDebugMode) _LogInterceptor(),
     ]);
+  }
+
+  static String _getDefaultBaseUrl() {
+    if (kIsWeb) {
+      return 'http://localhost:8000/api';
+    }
+    // Android emulator uses 10.0.2.2 to reach host
+    return 'http://10.0.2.2:8000/api';
   }
 
   Dio get dio => _dio;
@@ -121,8 +123,12 @@ class ApiClient {
   }
 
   Future<bool> hasToken() async {
-    final token = await _storage.read(key: 'access_token');
-    return token != null && token.isNotEmpty;
+    try {
+      final token = await _storage.read(key: 'access_token');
+      return token != null && token.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
   }
 
   Future<String?> getAccessToken() async {

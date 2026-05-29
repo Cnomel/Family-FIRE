@@ -21,6 +21,23 @@ from app.families.schemas import (
 router = APIRouter()
 
 
+@router.get(
+    "/current",
+    response_model=SuccessResponse[FamilyResponse],
+    summary="当前家庭",
+    description="获取用户当前家庭（第一个家庭）",
+)
+async def get_current_family(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    families = await family_service.get_user_families(db, current_user.id)
+    if not families:
+        from app.common.exceptions import NotFoundError
+        raise NotFoundError("家庭", "当前用户暂无家庭")
+    return SuccessResponse(data=families[0])
+
+
 @router.post(
     "",
     response_model=SuccessResponse[FamilyResponse],
