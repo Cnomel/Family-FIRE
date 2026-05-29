@@ -3,28 +3,33 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/theme.dart';
 import '../../core/auth/auth_repository.dart';
 
+final userProfileProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final api = ref.read(apiClientProvider);
+  try {
+    final response = await api.dio.get('/auth/me');
+    return response.data['data'] ?? {};
+  } catch (e) {
+    return {};
+  }
+});
+
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final profileAsync = ref.watch(userProfileProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('设置')),
       body: ListView(
         children: [
           // Profile Section
-          _buildSection('个人信息', [
-            ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: AppColors.primaryLight,
-                child: Icon(Icons.person, color: AppColors.primary),
-              ),
-              title: const Text('编辑资料'),
-              subtitle: const Text('修改姓名、头像'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {},
-            ),
-          ]),
+          profileAsync.when(
+            loading: () => _buildProfileLoading(),
+            error: (e, _) => _buildProfileError(e),
+            data: (profile) => _buildProfileSection(context, ref, profile),
+          ),
 
           const SizedBox(height: 8),
 
@@ -55,7 +60,9 @@ class SettingsPage extends ConsumerWidget {
               title: const Text('通知设置'),
               subtitle: const Text('管理通知偏好'),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () {},
+              onTap: () {
+                // TODO: Navigate to notification settings
+              },
             ),
           ]),
 
@@ -68,7 +75,9 @@ class SettingsPage extends ConsumerWidget {
               title: const Text('家庭管理'),
               subtitle: const Text('管理家庭和成员'),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () {},
+              onTap: () {
+                // TODO: Navigate to family management
+              },
             ),
           ]),
 
@@ -114,6 +123,102 @@ class SettingsPage extends ConsumerWidget {
     );
   }
 
+  Widget _buildProfileSection(BuildContext context, WidgetRef ref, Map<String, dynamic> profile) {
+    final username = profile['username'] ?? '';
+    final fullName = profile['full_name'] ?? '';
+    final email = profile['email'] ?? '';
+    final role = profile['role'] ?? '';
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 30,
+            backgroundColor: AppColors.primaryLight,
+            child: Text(
+              fullName.isNotEmpty ? fullName[0].toUpperCase() : 'U',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: AppColors.primary),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(fullName.isNotEmpty ? fullName : username, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text(email, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+                const SizedBox(height: 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(_getRoleLabel(role), style: const TextStyle(color: AppColors.primary, fontSize: 11)),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit, color: AppColors.textSecondary),
+            onPressed: () {
+              // TODO: Navigate to edit profile
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileLoading() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Row(
+        children: [
+          CircleAvatar(radius: 30, child: CircularProgressIndicator()),
+          SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('加载中...', style: TextStyle(color: AppColors.textSecondary)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileError(Object error) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const CircleAvatar(radius: 30, child: Icon(Icons.error, color: AppColors.loss)),
+          const SizedBox(width: 16),
+          Text('加载失败: $error', style: const TextStyle(color: AppColors.loss)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSection(String title, List<Widget> children) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,6 +236,15 @@ class SettingsPage extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  String _getRoleLabel(String role) {
+    switch (role) {
+      case 'admin': return '系统管理员';
+      case 'family_admin': return '家庭管理员';
+      case 'member': return '成员';
+      default: return role;
+    }
   }
 
   void _showThemeDialog(BuildContext context) {

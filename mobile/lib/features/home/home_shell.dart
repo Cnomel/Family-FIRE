@@ -7,6 +7,47 @@ import '../finance/fire_dashboard_page.dart';
 import '../notifications/notification_list_page.dart';
 import '../settings/settings_page.dart';
 
+// Providers for dashboard data
+final dashboardNetWorthProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final api = ref.read(apiClientProvider);
+  try {
+    final response = await api.dio.get('/families/current/finance/fire/net-worth');
+    return response.data['data'] ?? {};
+  } catch (e) {
+    return {'total_assets': 0, 'net_worth': 0, 'liquid_net_worth': 0};
+  }
+});
+
+final dashboardFireProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final api = ref.read(apiClientProvider);
+  try {
+    final response = await api.dio.get('/families/current/finance/fire/snapshot');
+    return response.data['data'] ?? {};
+  } catch (e) {
+    return {'savings_rate': 0, 'fi_ratio': 0, 'years_to_fire': 999};
+  }
+});
+
+final dashboardTransactionsProvider = FutureProvider.autoDispose<List<dynamic>>((ref) async {
+  final api = ref.read(apiClientProvider);
+  try {
+    final response = await api.dio.get('/families/current/finance/income-expense?page_size=5');
+    return response.data['data']['records'] ?? [];
+  } catch (e) {
+    return [];
+  }
+});
+
+final dashboardAllocationProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final api = ref.read(apiClientProvider);
+  try {
+    final response = await api.dio.get('/families/current/finance/fire/allocation');
+    return response.data['data'] ?? {};
+  } catch (e) {
+    return {};
+  }
+});
+
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
 
@@ -52,7 +93,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           BottomNavigationBarItem(icon: Icon(Icons.home), label: '首页'),
           BottomNavigationBarItem(icon: Icon(Icons.account_balance_wallet), label: '资产'),
           BottomNavigationBarItem(icon: Icon(Icons.trending_up), label: '财务'),
-          BottomNavigationBarItem(icon: Icon(Icons.description), label: '文档'),
+          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: '通知'),
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: '设置'),
         ],
       ),
@@ -60,73 +101,131 @@ class _HomeShellState extends ConsumerState<HomeShell> {
   }
 
   Widget _buildDashboard() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Net Worth Hero Card
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.primary, AppColors.primaryDark],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
+    final nwAsync = ref.watch(dashboardNetWorthProvider);
+    final fireAsync = ref.watch(dashboardFireProvider);
+    final txAsync = ref.watch(dashboardTransactionsProvider);
+    final allocAsync = ref.watch(dashboardAllocationProvider);
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(dashboardNetWorthProvider);
+        ref.invalidate(dashboardFireProvider);
+        ref.invalidate(dashboardTransactionsProvider);
+        ref.invalidate(dashboardAllocationProvider);
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Net Worth Hero Card
+            nwAsync.when(
+              loading: () => _buildLoadingCard(height: 140),
+              error: (e, _) => _buildErrorCard(e),
+              data: (nw) => _buildNetWorthCard(nw),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 16),
+
+            // Quick Stats
+            fireAsync.when(
+              loading: () => _buildLoadingCard(height: 80),
+              error: (e, _) => _buildErrorCard(e),
+              data: (fire) => _buildQuickStats(fire),
+            ),
+            const SizedBox(height: 24),
+
+            // Asset Allocation
+            const Text('资产配置', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 12),
+            allocAsync.when(
+              loading: () => _buildLoadingCard(height: 60),
+              error: (e, _) => _buildErrorCard(e),
+              data: (alloc) => _buildAllocationSection(alloc),
+            ),
+            const SizedBox(height: 24),
+
+            // Recent Transactions
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('净资产', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                const SizedBox(height: 8),
-                Text(
-                  _privacyMode ? '****' : '¥1,234,567.89',
-                  style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Text('昨日收益 ', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                    Text(
-                      _privacyMode ? '****' : '+¥1,234.56',
-                      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
-                    ),
-                  ],
+                const Text('最近交易', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                TextButton(
+                  onPressed: () => setState(() => _currentIndex = 2),
+                  child: const Text('查看全部'),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            txAsync.when(
+              loading: () => _buildLoadingCard(height: 200),
+              error: (e, _) => _buildErrorCard(e),
+              data: (txs) => _buildTransactionList(txs),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-          // Quick Stats
+  Widget _buildNetWorthCard(Map<String, dynamic> nw) {
+    final netWorth = (nw['net_worth'] ?? 0).toDouble();
+    final liquid = (nw['liquid_net_worth'] ?? 0).toDouble();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.primary, AppColors.primaryDark],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('净资产', style: TextStyle(color: Colors.white70, fontSize: 14)),
+          const SizedBox(height: 8),
+          Text(
+            _privacyMode ? '****' : '¥${_formatAmount(netWorth)}',
+            style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
-              _buildStatCard('储蓄率', _privacyMode ? '**%' : '63.3%', AppColors.profit),
-              const SizedBox(width: 12),
-              _buildStatCard('FIRE进度', _privacyMode ? '**%' : '24.7%', AppColors.primary),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  _privacyMode ? '****' : '流动: ¥${_formatAmount(liquid)}',
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 24),
-
-          // Asset Allocation
-          const Text('资产配置', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          _buildAllocationRow('金融资产', 0.45, AppColors.primary),
-          _buildAllocationRow('固定资产', 0.35, AppColors.housing),
-          _buildAllocationRow('流动资金', 0.20, AppColors.profit),
-          const SizedBox(height: 24),
-
-          // Recent Transactions
-          const Text('最近交易', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          _buildTransactionItem('工资收入', '+¥15,000.00', '今天', true),
-          _buildTransactionItem('超市购物', '-¥156.78', '今天', false),
-          _buildTransactionItem('打车', '-¥23.50', '昨天', false),
         ],
       ),
+    );
+  }
+
+  Widget _buildQuickStats(Map<String, dynamic> fire) {
+    final savingsRate = (fire['savings_rate'] ?? 0).toDouble();
+    final fiRatio = (fire['fi_ratio'] ?? 0).toDouble();
+    final yearsToFire = fire['years_to_fire'] ?? 999;
+
+    return Row(
+      children: [
+        _buildStatCard('储蓄率', _privacyMode ? '**%' : '${(savingsRate * 100).toStringAsFixed(1)}%', AppColors.profit),
+        const SizedBox(width: 12),
+        _buildStatCard('FIRE进度', _privacyMode ? '**%' : '${(fiRatio * 100).toStringAsFixed(1)}%', AppColors.primary),
+        const SizedBox(width: 12),
+        _buildStatCard('距FIRE', _privacyMode ? '**' : (yearsToFire >= 999 ? '—' : '$yearsToFire年'), AppColors.warning),
+      ],
     );
   }
 
@@ -151,22 +250,89 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     );
   }
 
-  Widget _buildAllocationRow(String label, double percent, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Container(width: 12, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
-          const SizedBox(width: 8),
-          Text(label, style: const TextStyle(fontSize: 14)),
-          const Spacer(),
-          Text('${(percent * 100).toStringAsFixed(1)}%', style: const TextStyle(fontWeight: FontWeight.w500)),
-        ],
+  Widget _buildAllocationSection(Map<String, dynamic> alloc) {
+    if (alloc.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Center(child: Text('暂无资产数据', style: TextStyle(color: AppColors.textSecondary))),
+      );
+    }
+
+    final entries = alloc.entries.where((e) => e.value > 0).toList();
+    final colors = [AppColors.primary, AppColors.housing, AppColors.profit, AppColors.warning, AppColors.shopping];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+      ),
+      child: Column(
+        children: entries.asMap().entries.map((entry) {
+          final color = colors[entry.key % colors.length];
+          final percent = (entry.value.value * 100).toDouble();
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Container(width: 12, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+                const SizedBox(width: 8),
+                Text(_natureLabel(entry.value.key), style: const TextStyle(fontSize: 14)),
+                const Spacer(),
+                Text('${percent.toStringAsFixed(1)}%', style: const TextStyle(fontWeight: FontWeight.w500)),
+              ],
+            ),
+          );
+        }).toList(),
       ),
     );
   }
 
-  Widget _buildTransactionItem(String title, String amount, String date, bool isIncome) {
+  Widget _buildTransactionList(List<dynamic> txs) {
+    if (txs.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Center(
+          child: Column(
+            children: [
+              Icon(Icons.receipt_long, size: 48, color: AppColors.textTertiary),
+              SizedBox(height: 8),
+              Text('暂无交易记录', style: TextStyle(color: AppColors.textSecondary)),
+              SizedBox(height: 4),
+              Text('去财务页面记录收支', style: TextStyle(color: AppColors.textTertiary, fontSize: 12)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8)],
+      ),
+      child: Column(
+        children: txs.map((tx) => _buildTransactionItem(tx)).toList(),
+      ),
+    );
+  }
+
+  Widget _buildTransactionItem(Map<String, dynamic> tx) {
+    final isIncome = tx['type'] == 'income';
+    final amount = (tx['amount'] ?? 0).toDouble();
+    final description = tx['description'] ?? '';
+    final date = tx['date'] ?? '';
+
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: (isIncome ? AppColors.profit : AppColors.loss).withValues(alpha: 0.1),
@@ -176,16 +342,70 @@ class _HomeShellState extends ConsumerState<HomeShell> {
           size: 20,
         ),
       ),
-      title: Text(title),
-      subtitle: Text(date, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+      title: Text(description, style: const TextStyle(fontWeight: FontWeight.w500)),
+      subtitle: Text(_formatDate(date), style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
       trailing: Text(
-        _privacyMode ? '****' : amount,
+        _privacyMode ? '****' : '${isIncome ? '+' : '-'}¥${_formatAmount(amount)}',
         style: TextStyle(
           color: isIncome ? AppColors.profit : AppColors.loss,
           fontWeight: FontWeight.w600,
         ),
       ),
     );
+  }
+
+  Widget _buildLoadingCard({double height = 100}) {
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Center(child: CircularProgressIndicator()),
+    );
+  }
+
+  Widget _buildErrorCard(Object error) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(child: Text('加载失败: $error', style: const TextStyle(color: AppColors.loss))),
+    );
+  }
+
+  String _natureLabel(String nature) {
+    switch (nature) {
+      case 'tangible': return '实物资产';
+      case 'financial': return '金融资产';
+      case 'digital': return '数字资产';
+      case 'service': return '服务订阅';
+      case 'intangible': return '保险';
+      default: return nature;
+    }
+  }
+
+  String _formatAmount(double amount) {
+    if (amount >= 100000000) return '${(amount / 100000000).toStringAsFixed(2)}亿';
+    if (amount >= 10000) return '${(amount / 10000).toStringAsFixed(2)}万';
+    return amount.toStringAsFixed(2);
+  }
+
+  String _formatDate(String dateStr) {
+    if (dateStr.isEmpty) return '';
+    try {
+      final date = DateTime.parse(dateStr);
+      final now = DateTime.now();
+      final diff = now.difference(date);
+      if (diff.inDays == 0) return '今天';
+      if (diff.inDays == 1) return '昨天';
+      if (diff.inDays < 7) return '${diff.inDays}天前';
+      return '${date.month}月${date.day}日';
+    } catch (e) {
+      return dateStr;
+    }
   }
 
   void _showLogoutDialog() {

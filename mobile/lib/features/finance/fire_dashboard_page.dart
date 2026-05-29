@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../config/theme.dart';
-import '../../core/api/api_client.dart';
 import '../../core/auth/auth_repository.dart';
 
 const String _defaultFamilyId = 'current';
