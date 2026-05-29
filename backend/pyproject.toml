@@ -13,43 +13,34 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
     "python-multipart>=0.0.9",
-
     # Database
     "sqlmodel>=0.0.22",
     "sqlalchemy[asyncio]>=2.0.35",
     "asyncpg>=0.30.0",
     "alembic>=1.14.0",
-
     # Cache & Message Broker
     "redis>=5.2.0",
     "celery[redis]>=5.4.0",
-
     # Object Storage
     "minio>=7.2.0",
-
     # Authentication & Security
     "python-jose[cryptography]>=3.3.0",
     "bcrypt>=4.0.0",
-    
     # HTTP Client
     "httpx>=0.28.0",
-    
     # Logging
     "structlog>=24.4.0",
-    
     # Validation & Serialization
     "pydantic[email]>=2.10.0",
     "pydantic-settings>=2.6.0",
-    
     # Financial Data
     "yfinance>=0.2.50",
-    
     # Image Processing
     "pillow>=11.0.0",
-    
     # Utilities
     "python-dateutil>=2.9.0",
     "pytz>=2024.2",
+    "aiosqlite>=0.22.1",
 ]
 
 [project.optional-dependencies]

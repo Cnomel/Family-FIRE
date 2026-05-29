@@ -59,8 +59,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.requests_per_minute = requests_per_minute
         self.requests: dict[str, list[float]] = defaultdict(list)
+        self.disabled = False  # Can be disabled for testing
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        if self.disabled:
+            return await call_next(request)
+
+        # Skip rate limiting for health check and if disabled via app state
+        if request.url.path == "/health":
+            return await call_next(request)
+
+        # Check if rate limiting is disabled (for testing)
+        app = request.scope.get("app")
+        if app and getattr(app.state, "rate_limit_disabled", False):
+            return await call_next(request)
         # Skip rate limiting for health check
         if request.url.path == "/health":
             return await call_next(request)

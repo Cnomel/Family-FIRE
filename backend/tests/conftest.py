@@ -1,4 +1,4 @@
-"""Test configuration and fixtures."""
+"""Test configuration and fixtures using SQLite in-memory database."""
 
 import asyncio
 from collections.abc import AsyncGenerator
@@ -9,6 +9,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlmodel import SQLModel
 
 from app.config import Settings
 from app.database import get_db
@@ -27,21 +28,51 @@ def event_loop():
 def test_settings() -> Settings:
     """Get test settings."""
     return Settings(
-        DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/family_fire_test",
+        DATABASE_URL="sqlite+aiosqlite:///test.db",
         REDIS_URL="redis://localhost:6379/1",
         DEBUG=True,
         JWT_SECRET_KEY="test-secret-key-for-testing-only",
     )
 
 
-@pytest_asyncio.fixture
-async def test_db(test_settings: Settings) -> AsyncGenerator[AsyncSession, None]:
-    """Provide a test database session."""
-    test_engine = create_async_engine(
-        test_settings.DATABASE_URL,
+@pytest_asyncio.fixture(scope="session")
+async def test_engine(test_settings):
+    """Create test database engine and tables."""
+    # Import all models to register them
+    from app.users.models import User, SystemSettings  # noqa: F401
+    from app.families.models import Family, FamilyMember  # noqa: F401
+    from app.assets.models import (  # noqa: F401
+        Asset, AssetFinancial, AssetLifecycle, AssetRelationship,
+        AssetMetadataVehicle, AssetMetadataRealEstate, AssetMetadataElectronics,
+        AssetMetadataFurniture, AssetMetadataInsurance, AssetMetadataFinancial,
+        AssetMetadataSubscription, AssetMetadataAccount, AssetMetadataConsumable,
+    )
+    from app.finance.models import (  # noqa: F401
+        Liability, Transaction, ExpenseCategory, IncomeCategory,
+        IncomeExpenseRecord, PriceSnapshot,
+    )
+    from app.documents.models import AssetDocument  # noqa: F401
+    from app.notifications.models import Notification, NotificationPreference  # noqa: F401
+
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
         echo=False,
     )
 
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.create_all)
+
+    yield engine
+
+    async with engine.begin() as conn:
+        await conn.run_sync(SQLModel.metadata.drop_all)
+
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def test_db(test_engine) -> AsyncGenerator[AsyncSession, None]:
+    """Provide a test database session with rollback."""
     test_session_factory = sessionmaker(
         test_engine,
         class_=AsyncSession,
@@ -52,17 +83,27 @@ async def test_db(test_settings: Settings) -> AsyncGenerator[AsyncSession, None]
         yield session
         await session.rollback()
 
-    await test_engine.dispose()
-
 
 @pytest_asyncio.fixture
 async def client(test_db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """Provide a test HTTP client."""
+    """Provide a test HTTP client with database override."""
 
     async def override_get_db():
         yield test_db
 
     app.dependency_overrides[get_db] = override_get_db
+
+    # Disable rate limiting for tests
+    for middleware in app.user_middleware:
+        if hasattr(middleware, "cls") and middleware.cls.__name__ == "RateLimitMiddleware":
+            pass
+    # Find and disable rate limiter in middleware stack
+    from app.common.middleware import RateLimitMiddleware
+    for mw in getattr(app, "middleware_stack", []).__class__.__mro__:
+        pass
+
+    # Simply set a flag on the app to disable rate limiting
+    app.state.rate_limit_disabled = True
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -71,6 +112,7 @@ async def client(test_db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
         yield ac
 
     app.dependency_overrides.clear()
+    app.state.rate_limit_disabled = False
 
 
 @pytest.fixture

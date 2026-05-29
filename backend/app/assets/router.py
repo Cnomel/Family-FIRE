@@ -103,6 +103,49 @@ async def get_all_tags(
 
 
 @router.get(
+    "/relationship-graph",
+    response_model=SuccessResponse[dict],
+    summary="关系图谱",
+    description="获取家庭资产的完整关系图谱（节点+边）",
+)
+async def get_relationship_graph(
+    family_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.assets import relationships as rel_service
+    graph = await rel_service.get_relationship_graph(db, family_id, current_user.id)
+    return SuccessResponse(data=graph)
+
+
+@router.get(
+    "/insurance-gaps",
+    response_model=SuccessResponse[list],
+    summary="保险缺口",
+    description="分析高价值资产的保险覆盖缺口",
+)
+async def get_insurance_gaps(
+    family_id: str,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.assets import relationships as rel_service
+    gaps = await rel_service.analyze_insurance_gaps(db, family_id, current_user.id)
+    return SuccessResponse(data=gaps)
+
+
+@router.get(
+    "/relationship-types",
+    response_model=SuccessResponse[dict],
+    summary="关系类型",
+    description="获取所有可用的关系类型及说明",
+)
+async def get_relationship_types():
+    from app.assets.lifecycle.engine import RELATIONSHIP_TYPES
+    return SuccessResponse(data=RELATIONSHIP_TYPES)
+
+
+@router.get(
     "/{asset_id}",
     response_model=SuccessResponse[AssetDetailResponse],
     summary="资产详情",
@@ -427,46 +470,3 @@ async def delete_relationship(
     from app.assets import relationships as rel_service
     await rel_service.delete_relationship(db, family_id, current_user.id, rel_id)
     return MessageResponse(message="关系已删除")
-
-
-@router.get(
-    "/relationship-graph",
-    response_model=SuccessResponse[dict],
-    summary="关系图谱",
-    description="获取家庭资产的完整关系图谱（节点+边）",
-)
-async def get_relationship_graph(
-    family_id: str,
-    current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
-):
-    from app.assets import relationships as rel_service
-    graph = await rel_service.get_relationship_graph(db, family_id, current_user.id)
-    return SuccessResponse(data=graph)
-
-
-@router.get(
-    "/insurance-gaps",
-    response_model=SuccessResponse[list],
-    summary="保险缺口",
-    description="分析高价值资产的保险覆盖缺口",
-)
-async def get_insurance_gaps(
-    family_id: str,
-    current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
-):
-    from app.assets import relationships as rel_service
-    gaps = await rel_service.analyze_insurance_gaps(db, family_id, current_user.id)
-    return SuccessResponse(data=gaps)
-
-
-@router.get(
-    "/relationship-types",
-    response_model=SuccessResponse[dict],
-    summary="关系类型",
-    description="获取所有可用的关系类型及说明",
-)
-async def get_relationship_types():
-    from app.assets.lifecycle.engine import RELATIONSHIP_TYPES
-    return SuccessResponse(data=RELATIONSHIP_TYPES)
