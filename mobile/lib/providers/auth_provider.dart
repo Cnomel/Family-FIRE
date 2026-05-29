@@ -10,7 +10,7 @@ class AuthState extends ChangeNotifier {
   User? get user => _user;
   bool get loading => _loading;
   String? get error => _error;
-  bool get isLoggedIn => Api.instance.isLoggedIn && _user != null;
+  bool get isLoggedIn => Api.instance.isLoggedIn;
 
   Future<bool> login(String identifier, String password) async {
     _loading = true;
@@ -24,6 +24,7 @@ class AuthState extends ChangeNotifier {
       });
       final data = resp['data'];
       Api.instance.setTokens(data['access_token'], data['refresh_token']);
+      // 获取用户信息
       await _fetchUser();
       _loading = false;
       notifyListeners();
@@ -34,7 +35,7 @@ class AuthState extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _error = '网络错误，请检查连接';
+      _error = '网络错误: $e';
       _loading = false;
       notifyListeners();
       return false;
@@ -62,7 +63,7 @@ class AuthState extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _error = '网络错误，请检查连接';
+      _error = '网络错误: $e';
       _loading = false;
       notifyListeners();
       return false;
@@ -74,7 +75,8 @@ class AuthState extends ChangeNotifier {
       final resp = await Api.instance.get('/auth/me');
       _user = User.fromJson(resp['data']);
     } catch (e) {
-      // 忽略
+      // 如果获取用户失败，不影响登录状态
+      debugPrint('获取用户信息失败: $e');
     }
   }
 
