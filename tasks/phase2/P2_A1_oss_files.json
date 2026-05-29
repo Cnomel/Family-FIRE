@@ -1,0 +1,11 @@
+{
+  "id": "P2-A1",
+  "name": "开源文件",
+  "branch": "feat/oss-setup",
+  "dependencies": [],
+  "priority": "high",
+  "status": "in_progress",
+  "description": "创建开源必需文件：MIT LICENSE、CONTRIBUTING.md贡献指南、CODE_OF_CONDUCT.md行为准则、CHANGELOG.md变更日志",
+  "deliverables": ["LICENSE", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "CHANGELOG.md"],
+  "acceptance_criteria": ["MIT协议文件存在且格式正确", "贡献指南包含开发流程/PR规范/代码风格", "行为准则基于Contributor Covenant", "变更日志记录T1-T16完成内容"]
+}

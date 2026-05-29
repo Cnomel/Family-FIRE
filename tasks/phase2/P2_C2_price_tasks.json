@@ -1,0 +1,11 @@
+{
+  "id": "P2-C2",
+  "name": "价格自动更新任务",
+  "branch": "feat/celery-tasks",
+  "dependencies": ["P2-C1"],
+  "priority": "medium",
+  "status": "pending",
+  "description": "股票每15分钟更新、加密货币每5分钟、基金每日收盘后",
+  "deliverables": ["backend/app/tasks/price_update.py"],
+  "acceptance_criteria": ["股票价格定时更新", "加密货币价格定时更新", "基金NAV定时更新", "价格快照记录到数据库", "Redis缓存生效"]
+}

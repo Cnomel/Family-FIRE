@@ -1,0 +1,11 @@
+{
+  "id": "P2-B6",
+  "name": "Flutter FIRE仪表盘联调",
+  "branch": "feat/flutter-api-integration",
+  "dependencies": ["P2-B4", "P2-B5"],
+  "priority": "high",
+  "status": "pending",
+  "description": "FIRE快照API联调、净资产图表、资产配置饼图、蒙特卡洛模拟、被动收入",
+  "deliverables": ["mobile/lib/features/finance/fire_dashboard_page.dart"],
+  "acceptance_criteria": ["净资产数据从API获取", "资产配置饼图显示正确", "蒙特卡洛模拟调用API", "储蓄率/FIRE数字计算正确"]
+}

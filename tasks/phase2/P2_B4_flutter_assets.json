@@ -1,0 +1,11 @@
+{
+  "id": "P2-B4",
+  "name": "Flutter资产管理联调",
+  "branch": "feat/flutter-api-integration",
+  "dependencies": ["P2-B1"],
+  "priority": "high",
+  "status": "pending",
+  "description": "资产列表API联调、资产详情、创建/编辑表单、筛选搜索、标签管理、统计数据",
+  "deliverables": ["mobile/lib/features/assets/asset_list_page.dart", "mobile/lib/features/assets/asset_detail_page.dart", "mobile/lib/features/assets/asset_edit_page.dart"],
+  "acceptance_criteria": ["资产列表从API获取", "筛选参数传递正确", "创建资产成功后刷新列表", "详情页显示完整信息", "统计数据准确"]
+}

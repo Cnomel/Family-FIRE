@@ -1,0 +1,11 @@
+{
+  "id": "P2-D1",
+  "name": "WebSocket后端",
+  "branch": "feat/websocket",
+  "dependencies": ["P2-C1"],
+  "priority": "medium",
+  "status": "pending",
+  "description": "FastAPI WebSocket端点、Redis Pub/Sub消息分发、连接管理、认证验证",
+  "deliverables": ["backend/app/notifications/websocket.py"],
+  "acceptance_criteria": ["WebSocket连接需要Token认证", "消息通过Redis Pub/Sub分发", "连接断开自动清理", "支持多设备同时连接"]
+}

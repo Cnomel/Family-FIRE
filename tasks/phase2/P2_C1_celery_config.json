@@ -1,0 +1,11 @@
+{
+  "id": "P2-C1",
+  "name": "Celery配置",
+  "branch": "feat/celery-tasks",
+  "dependencies": [],
+  "priority": "medium",
+  "status": "pending",
+  "description": "Celery app配置、Beat调度器、Worker启动脚本、任务注册",
+  "deliverables": ["backend/app/celery_app.py", "backend/app/tasks/__init__.py"],
+  "acceptance_criteria": ["Celery app正确配置Redis broker", "Beat调度器可启动", "Worker可启动", "任务可异步执行"]
+}
