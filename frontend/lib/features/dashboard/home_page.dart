@@ -4,6 +4,7 @@ import '../../core/theme.dart';
 import '../../core/formatters.dart';
 import '../assets/assets_page.dart';
 import '../finance/finance_page.dart';
+import '../settings/settings_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -41,7 +42,7 @@ class _HomePageState extends State<HomePage> {
           DashboardTab(privacy: _privacy),
           AssetsTab(privacy: _privacy),
           FinanceTab(privacy: _privacy),
-          const Center(child: Text('设置 - 开发中', style: TextStyle(fontSize: 18, color: kText2))),
+          const SettingsTab(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
