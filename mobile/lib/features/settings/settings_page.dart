@@ -1,133 +1,98 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../config/theme.dart';
-import '../../core/auth/auth_repository.dart';
+import '../../core/api_service.dart';
+import '../../main.dart';
 
-final userProfileProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
-  final api = ref.read(apiClientProvider);
-  try {
-    final response = await api.dio.get('/auth/me');
-    return response.data['data'] ?? {};
-  } catch (e) {
-    return {};
-  }
-});
-
-class SettingsPage extends ConsumerWidget {
+class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final profileAsync = ref.watch(userProfileProvider);
+  State<SettingsPage> createState() => _SettingsPageState();
+}
 
+class _SettingsPageState extends State<SettingsPage> {
+  final _api = ApiService();
+  Map<String, dynamic>? _user;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUser();
+  }
+
+  Future<void> _loadUser() async {
+    setState(() => _loading = true);
+    try {
+      final response = await _api.get('/auth/me');
+      setState(() {
+        _user = response['data'];
+        _loading = false;
+      });
+    } catch (e) {
+      setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('设置')),
+      appBar: AppBar(
+        title: const Text('设置'),
+        automaticallyImplyLeading: false,
+      ),
       body: ListView(
         children: [
-          // Profile Section
-          profileAsync.when(
-            loading: () => _buildProfileLoading(),
-            error: (e, _) => _buildProfileError(e),
-            data: (profile) => _buildProfileSection(context, ref, profile),
-          ),
+          // Profile
+          _loading
+              ? const Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              : _buildProfile(),
 
           const SizedBox(height: 8),
-
-          // Appearance
-          _buildSection('外观', [
-            ListTile(
-              leading: const Icon(Icons.palette, color: AppColors.primary),
-              title: const Text('主题'),
-              subtitle: const Text('跟随系统'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _showThemeDialog(context),
-            ),
-            ListTile(
-              leading: const Icon(Icons.language, color: AppColors.primary),
-              title: const Text('语言'),
-              subtitle: const Text('中文'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _showLanguageDialog(context),
-            ),
+          _section('外观', [
+            _tile(Icons.palette, '主题', '跟随系统'),
+            _tile(Icons.language, '语言', '中文'),
           ]),
-
           const SizedBox(height: 8),
-
-          // Notifications
-          _buildSection('通知', [
-            ListTile(
-              leading: const Icon(Icons.notifications, color: AppColors.primary),
-              title: const Text('通知设置'),
-              subtitle: const Text('管理通知偏好'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                // TODO: Navigate to notification settings
-              },
-            ),
+          _section('通知', [
+            _tile(Icons.notifications, '通知设置', '管理通知偏好'),
           ]),
-
           const SizedBox(height: 8),
-
-          // Family
-          _buildSection('家庭', [
-            ListTile(
-              leading: const Icon(Icons.family_restroom, color: AppColors.primary),
-              title: const Text('家庭管理'),
-              subtitle: const Text('管理家庭和成员'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                // TODO: Navigate to family management
-              },
-            ),
+          _section('家庭', [
+            _tile(Icons.family_restroom, '家庭管理', '管理家庭和成员'),
           ]),
-
           const SizedBox(height: 8),
-
-          // About
-          _buildSection('关于', [
-            ListTile(
-              leading: const Icon(Icons.info, color: AppColors.primary),
-              title: const Text('关于 Family Fire'),
-              subtitle: const Text('版本 0.1.0'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => _showAboutDialog(context),
-            ),
-            ListTile(
-              leading: const Icon(Icons.description, color: AppColors.primary),
-              title: const Text('开源协议'),
-              subtitle: const Text('MIT License'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {},
-            ),
+          _section('关于', [
+            _tile(Icons.info, '关于 Family Fire', '版本 0.1.0'),
+            _tile(Icons.description, '开源协议', 'MIT License'),
           ]),
-
           const SizedBox(height: 24),
-
-          // Logout
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: OutlinedButton(
-              onPressed: () => _showLogoutDialog(context, ref),
+              onPressed: () => _showLogoutDialog(),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.loss,
-                side: const BorderSide(color: AppColors.loss),
+                foregroundColor: AppColors.error,
+                side: const BorderSide(color: AppColors.error),
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               child: const Text('退出登录'),
             ),
           ),
-
           const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  Widget _buildProfileSection(BuildContext context, WidgetRef ref, Map<String, dynamic> profile) {
-    final username = profile['username'] ?? '';
-    final fullName = profile['full_name'] ?? '';
-    final email = profile['email'] ?? '';
-    final role = profile['role'] ?? '';
+  Widget _buildProfile() {
+    final username = _user?['username'] ?? '';
+    final fullName = _user?['full_name'] ?? '';
+    final email = _user?['email'] ?? '';
+    final role = _user?['role'] ?? '';
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -162,83 +127,17 @@ class SettingsPage extends ConsumerWidget {
                     color: AppColors.primaryLight,
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(_getRoleLabel(role), style: const TextStyle(color: AppColors.primary, fontSize: 11)),
+                  child: Text(_roleLabel(role), style: const TextStyle(color: AppColors.primary, fontSize: 11)),
                 ),
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.edit, color: AppColors.textSecondary),
-            onPressed: () {
-              // TODO: Navigate to edit profile
-            },
-          ),
         ],
       ),
     );
   }
 
-  Widget _buildProfileLoading() {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: const Row(
-        children: [
-          CircleAvatar(radius: 30, child: CircularProgressIndicator()),
-          SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('加载中...', style: TextStyle(color: AppColors.textSecondary)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileError(Object error) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const CircleAvatar(radius: 30, child: Icon(Icons.error, color: AppColors.loss)),
-          const SizedBox(width: 16),
-          Text('加载失败: $error', style: const TextStyle(color: AppColors.loss)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSection(String title, List<Widget> children) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(children: children),
-        ),
-      ],
-    );
-  }
-
-  String _getRoleLabel(String role) {
+  String _roleLabel(String role) {
     switch (role) {
       case 'admin': return '系统管理员';
       case 'family_admin': return '家庭管理员';
@@ -247,65 +146,32 @@ class SettingsPage extends ConsumerWidget {
     }
   }
 
-  void _showThemeDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('选择主题'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(title: const Text('跟随系统'), trailing: const Icon(Icons.check, color: AppColors.primary), onTap: () => Navigator.pop(context)),
-            ListTile(title: const Text('浅色'), onTap: () => Navigator.pop(context)),
-            ListTile(title: const Text('深色'), onTap: () => Navigator.pop(context)),
-          ],
+  Widget _section(String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
         ),
-      ),
+        Container(
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          child: Column(children: children),
+        ),
+      ],
     );
   }
 
-  void _showLanguageDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('选择语言'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(title: const Text('中文'), trailing: const Icon(Icons.check, color: AppColors.primary), onTap: () => Navigator.pop(context)),
-            ListTile(title: const Text('English'), onTap: () => Navigator.pop(context)),
-          ],
-        ),
-      ),
+  Widget _tile(IconData icon, String title, String subtitle) {
+    return ListTile(
+      leading: Icon(icon, color: AppColors.primary),
+      title: Text(title),
+      subtitle: Text(subtitle, style: const TextStyle(color: AppColors.textSecondary)),
+      trailing: const Icon(Icons.chevron_right),
     );
   }
 
-  void _showAboutDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('关于 Family Fire'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('版本: 0.1.0'),
-            SizedBox(height: 8),
-            Text('家庭资产管理系统'),
-            SizedBox(height: 8),
-            Text('通过资产关系管理、日常支出追踪、投资分析，帮助家庭实现FIRE财务独立。'),
-            SizedBox(height: 16),
-            Text('开源协议: MIT', style: TextStyle(color: AppColors.textSecondary)),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('确定')),
-        ],
-      ),
-    );
-  }
-
-  void _showLogoutDialog(BuildContext context, WidgetRef ref) {
+  void _showLogoutDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -316,9 +182,9 @@ class SettingsPage extends ConsumerWidget {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              ref.read(authProvider.notifier).logout();
+              authState.logout();
             },
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.loss),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
             child: const Text('退出'),
           ),
         ],

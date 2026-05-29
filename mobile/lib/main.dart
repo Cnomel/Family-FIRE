@@ -1,51 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'config/theme.dart';
-import 'core/auth/auth_repository.dart';
+import 'core/auth_state.dart';
 import 'features/auth/login_page.dart';
-import 'features/auth/register_page.dart';
-import 'features/home/home_shell.dart';
+import 'features/home/home_page.dart';
+
+final authState = AuthState();
 
 void main() {
-  runApp(const ProviderScope(child: FamilyFireApp()));
+  runApp(const FamilyFireApp());
 }
 
-class FamilyFireApp extends ConsumerWidget {
+class FamilyFireApp extends StatelessWidget {
   const FamilyFireApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final router = ref.watch(routerProvider);
-
-    return MaterialApp.router(
-      title: 'Family Fire',
-      theme: AppTheme.lightTheme(),
-      darkTheme: AppTheme.darkTheme(),
-      themeMode: ThemeMode.system,
-      routerConfig: router,
-      debugShowCheckedModeBanner: false,
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: authState,
+      builder: (context, _) {
+        return MaterialApp(
+          title: 'Family Fire',
+          theme: buildLightTheme(),
+          debugShowCheckedModeBanner: false,
+          home: authState.isLoggedIn ? const HomePage() : const LoginPage(),
+        );
+      },
     );
   }
 }
-
-final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authProvider);
-
-  return GoRouter(
-    initialLocation: '/login',
-    redirect: (context, state) {
-      final isLoggedIn = authState.isAuthenticated;
-      final isLoginRoute = state.matchedLocation == '/login' || state.matchedLocation == '/register';
-
-      if (!isLoggedIn && !isLoginRoute) return '/login';
-      if (isLoggedIn && isLoginRoute) return '/home';
-      return null;
-    },
-    routes: [
-      GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
-      GoRoute(path: '/register', builder: (context, state) => const RegisterPage()),
-      GoRoute(path: '/home', builder: (context, state) => const HomeShell()),
-    ],
-  );
-});
