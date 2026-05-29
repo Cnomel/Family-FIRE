@@ -1,7 +1,7 @@
 """Notification service."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import and_, func, select, update
@@ -11,6 +11,7 @@ from app.common.exceptions import NotFoundError
 from app.common.logging import get_logger
 from app.families.models import FamilyMember
 from app.notifications.models import Notification, NotificationPreference
+from app.common.utils import utcnow
 
 logger = get_logger("notification_service")
 
@@ -144,7 +145,7 @@ async def mark_read(db: AsyncSession, notification_id: str, user_id: str) -> Non
         raise NotFoundError("通知", notification_id)
 
     notif.is_read = True
-    notif.read_at = datetime.now(UTC)
+    notif.read_at = utcnow()
     await db.flush()
 
 
@@ -153,7 +154,7 @@ async def mark_all_read(db: AsyncSession, user_id: str) -> int:
     stmt = (
         update(Notification)
         .where(Notification.user_id == user_id, Notification.is_read.is_(False))
-        .values(is_read=True, read_at=datetime.now(UTC))
+        .values(is_read=True, read_at=utcnow())
     )
     result = await db.execute(stmt)
     await db.flush()

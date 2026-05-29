@@ -7,14 +7,19 @@ from datetime import UTC, datetime
 from typing import Any
 
 from app.common.logging import get_logger
+from app.common.utils import utcnow
 
 logger = get_logger("lifecycle")
 
 
-def _ensure_tz_aware(dt: datetime) -> datetime:
-    """Ensure datetime is timezone-aware (assume UTC if naive)."""
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=UTC)
+def _ensure_naive(dt: datetime) -> datetime:
+    """Ensure datetime is naive (strip timezone if present).
+
+    This is needed because PostgreSQL TIMESTAMP WITHOUT TIME ZONE
+    requires naive datetimes, and asyncpg rejects timezone-aware ones.
+    """
+    if dt.tzinfo is not None:
+        return dt.replace(tzinfo=None)
     return dt
 
 
@@ -44,11 +49,11 @@ def compute_current_value(
     if not config:
         config = {}
 
-    today = datetime.now(UTC)
+    today = utcnow()
 
-    # Ensure purchase_date is timezone-aware
+    # Ensure purchase_date is naive
     if purchase_date:
-        purchase_date = _ensure_tz_aware(purchase_date)
+        purchase_date = _ensure_naive(purchase_date)
 
     match trajectory:
         case "depreciating":
@@ -84,8 +89,6 @@ def _compute_depreciating(
     """
     if not purchase_date:
         return purchase_price
-
-    # Ensure timezone-aware comparison
 
     method = config.get("method", "straight_line")
     rate = config.get("rate", 0.15)
@@ -141,7 +144,7 @@ def _compute_expiring(
 
     try:
         end_date = datetime.fromisoformat(end_date_str.replace("Z", "+00:00"))
-        end_date = _ensure_tz_aware(end_date)
+        end_date = _ensure_naive(end_date)
     except (ValueError, AttributeError):
         return renewal_cost
 
@@ -198,8 +201,6 @@ def _compute_appreciating(
     if not purchase_date:
         return purchase_price * (1 + annual_rate)
 
-    # Ensure timezone-aware comparison
-
     age_years = (today - purchase_date).days / 365.25
     return purchase_price * ((1 + annual_rate) ** age_years)
 
@@ -220,11 +221,11 @@ def compute_value_history(
 
     from dateutil.relativedelta import relativedelta
 
-    # Ensure purchase_date is timezone-aware
-    purchase_date = _ensure_tz_aware(purchase_date)
+    # Ensure purchase_date is naive
+    purchase_date = _ensure_naive(purchase_date)
 
     history = []
-    today = datetime.now(UTC)
+    today = utcnow()
 
     for i in range(months, -1, -1):
         date = today - relativedelta(months=i)

@@ -8,13 +8,14 @@ Supports:
 
 import asyncio
 from abc import ABC, abstractmethod
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any, ClassVar
 
 import httpx
 
 from app.common.logging import get_logger
 from app.config import get_settings
+from app.common.utils import utcnow
 
 logger = get_logger("price_provider")
 settings = get_settings()
@@ -67,7 +68,7 @@ class AlphaVantageProvider(PriceProvider):
                     "price": price,
                     "currency": currency,
                     "source": "alphavantage",
-                    "timestamp": datetime.now(UTC),
+                    "timestamp": utcnow(),
                 }
         except Exception as e:
             logger.error("alphavantage_error", symbol=symbol, error=str(e))
@@ -124,7 +125,7 @@ class CoinGeckoProvider(PriceProvider):
                     "price": price,
                     "currency": currency,
                     "source": "coingecko",
-                    "timestamp": datetime.now(UTC),
+                    "timestamp": utcnow(),
                 }
         except Exception as e:
             logger.error("coingecko_error", symbol=symbol, error=str(e))
@@ -171,7 +172,7 @@ class YahooFinanceProvider(PriceProvider):
                 "price": price,
                 "currency": currency,
                 "source": "yahoo",
-                "timestamp": datetime.now(UTC),
+                "timestamp": utcnow(),
             }
         except Exception as e:
             logger.error("yahoo_error", symbol=symbol, error=str(e))

@@ -1,7 +1,7 @@
 """Authentication service: register, login, token management, password reset."""
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +33,7 @@ from app.common.security import (
 )
 from app.config import get_settings
 from app.users.models import User
+from app.common.utils import utcnow
 
 logger = get_logger("auth_service")
 settings = get_settings()
@@ -119,8 +120,8 @@ async def login(db: AsyncSession, data: LoginRequest) -> TokenResponse:
         raise AuthenticationError("用户名/邮箱或密码错误")
 
     # Check if account is locked
-    if user.locked_until and user.locked_until > datetime.now(UTC):
-        remaining = int((user.locked_until - datetime.now(UTC)).total_seconds() / 60)
+    if user.locked_until and user.locked_until > utcnow():
+        remaining = int((user.locked_until - utcnow()).total_seconds() / 60)
         logger.warning("login_failed_account_locked", user_id=user.id)
         raise AccountLockedError(lockout_minutes=remaining)
 
@@ -134,7 +135,7 @@ async def login(db: AsyncSession, data: LoginRequest) -> TokenResponse:
         # Increment login attempts
         user.login_attempts += 1
         if user.login_attempts >= settings.LOGIN_MAX_ATTEMPTS:
-            user.locked_until = datetime.now(UTC) + timedelta(
+            user.locked_until = utcnow() + timedelta(
                 minutes=settings.LOGIN_LOCKOUT_MINUTES
             )
             user.login_attempts = 0
@@ -145,7 +146,7 @@ async def login(db: AsyncSession, data: LoginRequest) -> TokenResponse:
     # Reset login attempts on successful login
     user.login_attempts = 0
     user.locked_until = None
-    user.last_login_at = datetime.now(UTC)
+    user.last_login_at = utcnow()
     await db.flush()
 
     # Generate tokens

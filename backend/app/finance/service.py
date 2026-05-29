@@ -1,7 +1,7 @@
 """Finance service: liability, income/expense, transactions, cost basis."""
 
 import uuid
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import and_, func, select
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.exceptions import NotFoundError, PermissionDeniedError
 from app.common.logging import get_logger
+from app.common.utils import utcnow
 from app.families.models import FamilyMember
 from app.finance.models import (
     ExpenseCategory,
@@ -613,7 +614,7 @@ async def record_price_snapshot(
         price=price,
         currency=currency,
         source=source,
-        recorded_at=datetime.now(UTC),
+        recorded_at=utcnow(),
     )
     db.add(snapshot)
     await db.flush()
@@ -624,7 +625,7 @@ async def get_price_history(
 ) -> list[dict[str, Any]]:
     """Get price history for an asset."""
     from datetime import timedelta
-    cutoff = datetime.now(UTC) - timedelta(days=days)
+    cutoff = utcnow() - timedelta(days=days)
 
     stmt = (
         select(PriceSnapshot)

@@ -1,13 +1,10 @@
 """Base SQLModel models with common fields and mixins."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 from sqlmodel import Field, SQLModel
 
-
-def utcnow() -> datetime:
-    """Get current UTC time (timezone-aware)."""
-    return datetime.now(UTC)
+from app.common.utils import utcnow
 
 
 class TimestampMixin(SQLModel):

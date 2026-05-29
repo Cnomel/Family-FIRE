@@ -12,7 +12,7 @@ Core metrics:
 """
 
 import random
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -22,6 +22,7 @@ from app.assets.models import Asset, AssetFinancial
 from app.common.logging import get_logger
 from app.families.models import FamilyMember
 from app.finance.models import IncomeExpenseRecord, Liability
+from app.common.utils import utcnow
 
 logger = get_logger("fire_engine")
 
@@ -106,7 +107,7 @@ async def compute_monthly_summary(
 ) -> dict[str, Any]:
     """Compute monthly income/expense summary."""
     from datetime import timedelta
-    cutoff = datetime.now(UTC) - timedelta(days=months * 30)
+    cutoff = utcnow() - timedelta(days=months * 30)
 
     # Income
     income_stmt = (
