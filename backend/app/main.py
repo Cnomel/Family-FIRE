@@ -93,6 +93,15 @@ def create_app() -> FastAPI:
             "service": settings.APP_NAME,
         }
 
+    # WebSocket endpoint
+    from fastapi import Query
+    from app.notifications.websocket import handle_websocket
+
+    @app.websocket("/ws")
+    async def websocket_endpoint(websocket, token: str = Query(None)):
+        """WebSocket连接端点（实时通知）"""
+        await handle_websocket(websocket, token)
+
     # Register API routers
     from app.assets.router import router as assets_router
     from app.auth.router import router as auth_router
