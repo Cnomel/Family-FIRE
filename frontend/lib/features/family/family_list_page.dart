@@ -96,7 +96,10 @@ class _FamilyListPageState extends ConsumerState<FamilyListPage> {
         title: Text(family['name'] ?? ''),
         subtitle: Text('${family['member_count'] ?? 0} 人 · ${family['asset_count'] ?? 0} 个资产'),
         trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.push('/family/${family['id']}'),
+        onTap: () async {
+          await context.push('/family/${family['id']}');
+          if (mounted) _loadData();
+        },
       ),
     );
   }

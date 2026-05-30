@@ -197,11 +197,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ],
 
           // 快捷操作
-          _QuickActions(),
+          _QuickActions(onRefresh: _loadData),
           const SizedBox(height: 16),
 
           // 功能入口
-          _FeatureGrid(),
+          _FeatureGrid(onRefresh: _loadData),
         ],
       ),
     );
@@ -562,6 +562,10 @@ class _AllocationCard extends StatelessWidget {
 // ============================================================
 
 class _QuickActions extends StatelessWidget {
+  final VoidCallback onRefresh;
+
+  const _QuickActions({required this.onRefresh});
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -571,7 +575,10 @@ class _QuickActions extends StatelessWidget {
             icon: Icons.add_circle_outline,
             label: '添加资产',
             color: AppColors.primary,
-            onTap: () => context.push('/assets/create'),
+            onTap: () async {
+              await context.push('/assets/create');
+              onRefresh();
+            },
           ),
         ),
         const SizedBox(width: 8),
@@ -580,7 +587,10 @@ class _QuickActions extends StatelessWidget {
             icon: Icons.qr_code_scanner,
             label: '扫码添加',
             color: const Color(0xFF722ED1),
-            onTap: () => context.push('/assets/scan'),
+            onTap: () async {
+              await context.push('/assets/scan');
+              onRefresh();
+            },
           ),
         ),
         const SizedBox(width: 8),
@@ -589,7 +599,10 @@ class _QuickActions extends StatelessWidget {
             icon: Icons.upload_file,
             label: '上传文档',
             color: const Color(0xFF13C2C2),
-            onTap: () => context.push('/documents/upload'),
+            onTap: () async {
+              await context.push('/documents/upload');
+              onRefresh();
+            },
           ),
         ),
       ],
@@ -636,6 +649,10 @@ class _QuickActionCard extends StatelessWidget {
 // ============================================================
 
 class _FeatureGrid extends StatelessWidget {
+  final VoidCallback onRefresh;
+
+  const _FeatureGrid({required this.onRefresh});
+
   @override
   Widget build(BuildContext context) {
     final features = [
@@ -669,7 +686,10 @@ class _FeatureGrid extends StatelessWidget {
               itemBuilder: (context, index) {
                 final feature = features[index];
                 return InkWell(
-                  onTap: () => context.push(feature['path'] as String),
+                  onTap: () async {
+                    await context.push(feature['path'] as String);
+                    onRefresh();
+                  },
                   borderRadius: BorderRadius.circular(8),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,

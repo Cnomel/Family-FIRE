@@ -375,7 +375,10 @@ class _AssetListPageState extends ConsumerState<AssetListPage> {
                               const Text('暂无资产，点击添加第一个资产'),
                               const SizedBox(height: 16),
                               ElevatedButton.icon(
-                                onPressed: () => context.push('/assets/create'),
+                                onPressed: () async {
+                                  await context.push('/assets/create');
+                                  if (mounted) _loadAssets(refresh: true);
+                                },
                                 icon: const Icon(Icons.add),
                                 label: const Text('添加资产'),
                               ),
@@ -415,7 +418,10 @@ class _AssetListPageState extends ConsumerState<AssetListPage> {
                                       : null,
                                   onTap: _isSelectionMode
                                       ? () => _toggleSelection(asset['id'])
-                                      : () => context.push('/assets/${asset['id']}'),
+                                      : () async {
+                                          await context.push('/assets/${asset['id']}');
+                                          if (mounted) _loadAssets(refresh: true);
+                                        },
                                   isSelected: isSelected,
                                   showCheckbox: _isSelectionMode,
                                 ),
@@ -432,14 +438,20 @@ class _AssetListPageState extends ConsumerState<AssetListPage> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => context.push('/assets/create'),
+                  onPressed: () async {
+                    await context.push('/assets/create');
+                    if (mounted) _loadAssets(refresh: true);
+                  },
                   icon: const Icon(Icons.add),
                   label: const Text('添加资产'),
                 ),
               ),
               const SizedBox(width: 8),
               IconButton.filled(
-                onPressed: () => context.push('/assets/scan'),
+                onPressed: () async {
+                  await context.push('/assets/scan');
+                  if (mounted) _loadAssets(refresh: true);
+                },
                 icon: const Icon(Icons.qr_code_scanner),
               ),
             ],

@@ -63,7 +63,10 @@ class _IncomeExpensePageState extends ConsumerState<IncomeExpensePage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.bar_chart),
-            onPressed: () => context.push('/finance/income-expense/stats'),
+            onPressed: () async {
+              await context.push('/finance/income-expense/stats');
+              if (mounted) _loadData();
+            },
           ),
         ],
       ),

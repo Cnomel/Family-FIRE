@@ -53,7 +53,10 @@ class _DocumentListPageState extends ConsumerState<DocumentListPage> {
                       const Text('暂无文档'),
                       const SizedBox(height: 16),
                       ElevatedButton.icon(
-                        onPressed: () => context.push('/documents/upload'),
+                        onPressed: () async {
+                          await context.push('/documents/upload');
+                          if (mounted) _loadData();
+                        },
                         icon: const Icon(Icons.upload),
                         label: const Text('上传文档'),
                       ),
@@ -78,7 +81,10 @@ class _DocumentListPageState extends ConsumerState<DocumentListPage> {
                   ),
                 ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push('/documents/upload'),
+        onPressed: () async {
+          await context.push('/documents/upload');
+          if (mounted) _loadData();
+        },
         child: const Icon(Icons.add),
       ),
     );
@@ -91,12 +97,13 @@ class _DocumentListPageState extends ConsumerState<DocumentListPage> {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () {
+        onTap: () async {
           if (isPdf) {
-            context.push('/documents/${doc['id']}/pdf');
+            await context.push('/documents/${doc['id']}/pdf');
           } else if (isImage) {
-            context.push('/documents/${doc['id']}/image');
+            await context.push('/documents/${doc['id']}/image');
           }
+          if (mounted) _loadData();
         },
         onLongPress: () => _deleteDocument(doc['id']),
         child: Column(

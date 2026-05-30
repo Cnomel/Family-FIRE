@@ -70,7 +70,10 @@ class _NotificationListPageState extends ConsumerState<NotificationListPage> {
             ),
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () => context.push('/notifications/settings'),
+            onPressed: () async {
+              await context.push('/notifications/settings');
+              if (mounted) _loadData();
+            },
           ),
         ],
       ),

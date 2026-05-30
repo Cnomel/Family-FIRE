@@ -145,7 +145,10 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit),
-            onPressed: () => context.push('/assets/${widget.assetId}/edit'),
+            onPressed: () async {
+              await context.push('/assets/${widget.assetId}/edit');
+              if (mounted) _loadData();
+            },
           ),
           PopupMenuButton(
             itemBuilder: (context) => [
@@ -153,13 +156,15 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
               const PopupMenuItem(value: 'consumable', child: Text('消耗品追踪')),
               const PopupMenuItem(value: 'delete', child: Text('删除', style: TextStyle(color: Colors.red))),
             ],
-            onSelected: (value) {
+            onSelected: (value) async {
               switch (value) {
                 case 'relationships':
-                  context.push('/assets/${widget.assetId}/relationships');
+                  await context.push('/assets/${widget.assetId}/relationships');
+                  if (mounted) _loadData();
                   break;
                 case 'consumable':
-                  context.push('/assets/${widget.assetId}/consumable');
+                  await context.push('/assets/${widget.assetId}/consumable');
+                  if (mounted) _loadData();
                   break;
                 case 'delete':
                   _deleteAsset();
@@ -615,7 +620,10 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
                       onPressed: () => _createRelationship(),
                     ),
                     TextButton(
-                      onPressed: () => context.push('/assets/${widget.assetId}/relationships'),
+                      onPressed: () async {
+                        await context.push('/assets/${widget.assetId}/relationships');
+                        if (mounted) _loadData();
+                      },
                       child: const Text('查看关系图'),
                     ),
                   ],
@@ -789,12 +797,13 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
                     style: const TextStyle(fontSize: 12),
                     overflow: TextOverflow.ellipsis,
                   ),
-                  onPressed: () {
+                  onPressed: () async {
                     if (isPdf) {
-                      context.push('/documents/${doc['id']}/pdf');
+                      await context.push('/documents/${doc['id']}/pdf');
                     } else {
-                      context.push('/documents/${doc['id']}/image');
+                      await context.push('/documents/${doc['id']}/image');
                     }
+                    if (mounted) _loadData();
                   },
                 );
               }).toList(),

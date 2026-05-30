@@ -71,9 +71,12 @@ class _InsuranceGapsPageState extends ConsumerState<InsuranceGapsPage> {
                           title: Text(gap['name'] ?? gap['asset_name'] ?? ''),
                           subtitle: Text('价值: ${formatCurrency(toDouble(gap['current_value']))}'),
                           trailing: const Icon(Icons.chevron_right),
-                          onTap: () {
+                          onTap: () async {
                             final assetId = gap['asset_id'] ?? gap['id'];
-                            if (assetId != null) context.push('/assets/$assetId');
+                            if (assetId != null) {
+                              await context.push('/assets/$assetId');
+                              if (mounted) _loadData();
+                            }
                           },
                         ),
                       );

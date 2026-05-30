@@ -360,7 +360,10 @@ class _FireDashboardPageState extends ConsumerState<FireDashboardPage> {
               children: [
                 const Text('支出分析', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                 TextButton(
-                  onPressed: () => context.push('/finance/income-expense/stats'),
+                  onPressed: () async {
+                    await context.push('/finance/income-expense/stats');
+                    if (mounted) _loadData();
+                  },
                   child: const Text('查看详情'),
                 ),
               ],
@@ -415,7 +418,10 @@ class _FireDashboardPageState extends ConsumerState<FireDashboardPage> {
       title: Text(title),
       trailing: const Icon(Icons.chevron_right),
       contentPadding: EdgeInsets.zero,
-      onTap: () => context.push(path),
+      onTap: () async {
+        await context.push(path);
+        if (mounted) _loadData();
+      },
     );
   }
 }
