@@ -108,15 +108,29 @@ class DashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final fireAsync = ref.watch(fireSnapshotProvider);
     final statsAsync = ref.watch(assetStatsProvider);
+    final familyAsync = ref.watch(currentFamilyProvider);
 
     return RefreshIndicator(
       onRefresh: () async {
         ref.invalidate(fireSnapshotProvider);
         ref.invalidate(assetStatsProvider);
+        ref.invalidate(currentFamilyProvider);
       },
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // 无家庭提醒
+          familyAsync.when(
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+            data: (family) {
+              if (family == null) {
+                return _NoFamilyCard();
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+
           // 净资产Hero卡片
           _NetWorthCard(fireAsync: fireAsync),
           const SizedBox(height: 16),
@@ -556,6 +570,100 @@ class _FeatureGrid extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// 无家庭提醒卡片
+class _NoFamilyCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Icon(
+              Icons.family_restroom,
+              size: 48,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '欢迎使用 Family Fire！',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '您还没有创建或加入家庭\n创建家庭后即可开始管理家庭资产',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: () => context.push('/family'),
+                  icon: const Icon(Icons.add),
+                  label: const Text('创建家庭'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.primary,
+                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: () => _showJoinDialog(context),
+                  icon: const Icon(Icons.group_add),
+                  label: const Text('加入家庭'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showJoinDialog(BuildContext context) {
+    final codeController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('加入家庭'),
+        content: TextField(
+          controller: codeController,
+          decoration: const InputDecoration(
+            labelText: '邀请码',
+            hintText: '请输入6位邀请码',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              // 加入家庭的逻辑会在家庭管理页面处理
+              Navigator.pop(ctx);
+              context.push('/family');
+            },
+            child: const Text('加入'),
+          ),
+        ],
       ),
     );
   }
