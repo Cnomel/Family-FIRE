@@ -26,6 +26,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
   String _utility = 'essential';
   String _ownership = 'owned';
   String _liquidity = 'medium';
+  String _instrumentType = 'fund'; // 金融工具类型
 
   // Step 2: 基本信息
   final _nameController = TextEditingController();
@@ -87,7 +88,11 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
         _metadataType = data['metadata_type'];
         if (data['metadata'] != null) {
           (data['metadata'] as Map<String, dynamic>).forEach((key, value) {
-            _metadataControllers[key] = TextEditingController(text: value?.toString() ?? '');
+            if (key == 'instrument_type') {
+              _instrumentType = value?.toString() ?? 'fund';
+            } else {
+              _metadataControllers[key] = TextEditingController(text: value?.toString() ?? '');
+            }
           });
         }
 
@@ -122,6 +127,22 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
         }
       }
 
+      // 构建metadata
+      Map<String, dynamic>? metadata;
+      if (_nature == 'financial') {
+        metadata = {
+          'instrument_type': _instrumentType,
+          if (_metadataControllers['ticker']?.text.isNotEmpty == true)
+            'ticker': _metadataControllers['ticker']!.text.trim(),
+          if (_metadataControllers['exchange']?.text.isNotEmpty == true)
+            'exchange': _metadataControllers['exchange']!.text.trim(),
+          if (_metadataControllers['shares']?.text.isNotEmpty == true)
+            'shares': double.tryParse(_metadataControllers['shares']!.text) ?? 0,
+        };
+      } else if (_metadataControllers.isNotEmpty) {
+        metadata = _metadataControllers.map((k, v) => MapEntry(k, v.text.trim()));
+      }
+
       final body = {
         'name': _nameController.text.trim(),
         'description': _descriptionController.text.trim().isEmpty
@@ -136,9 +157,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
         'purchase_date': _purchaseDate?.toIso8601String(),
         'currency': _currencyController.text.trim(),
         'metadata_type': _nature == 'financial' ? 'financial' : _metadataType,
-        'metadata': _metadataControllers.isNotEmpty
-            ? _metadataControllers.map((k, v) => MapEntry(k, v.text.trim()))
-            : null,
+        'metadata': metadata,
       };
 
       if (widget.assetId != null) {
@@ -460,9 +479,6 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
 
   Widget _buildFinancialMetadataStep() {
     // 确保控制器存在
-    if (!_metadataControllers.containsKey('instrument_type')) {
-      _metadataControllers['instrument_type'] = TextEditingController(text: 'fund');
-    }
     if (!_metadataControllers.containsKey('ticker')) {
       _metadataControllers['ticker'] = TextEditingController();
     }
@@ -473,15 +489,14 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
       _metadataControllers['shares'] = TextEditingController();
     }
 
-    final instrumentType = _metadataControllers['instrument_type']!.text;
-    final isDepositOrCash = instrumentType == 'cd' || instrumentType == 'money_market';
+    final isDepositOrCash = _instrumentType == 'cd' || _instrumentType == 'money_market';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 金融工具类型
         DropdownButtonFormField<String>(
-          value: instrumentType.isNotEmpty ? instrumentType : 'fund',
+          value: _instrumentType,
           decoration: const InputDecoration(labelText: '金融工具类型'),
           items: const [
             DropdownMenuItem(value: 'fund', child: Text('基金')),
@@ -494,9 +509,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           ],
           onChanged: (v) {
             if (v != null) {
-              setState(() {
-                _metadataControllers['instrument_type']!.text = v;
-              });
+              setState(() => _instrumentType = v);
             }
           },
         ),
@@ -539,7 +552,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
               ),
               const SizedBox(width: 8),
               ElevatedButton(
-                onPressed: () => _lookupInstrument(instrumentType),
+                onPressed: () => _lookupInstrument(_instrumentType),
                 child: const Text('查询'),
               ),
             ],
