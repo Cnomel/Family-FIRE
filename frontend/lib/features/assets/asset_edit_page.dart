@@ -138,6 +138,8 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
             'exchange': _metadataControllers['exchange']!.text.trim(),
           if (_metadataControllers['shares']?.text.isNotEmpty == true)
             'shares': double.tryParse(_metadataControllers['shares']!.text) ?? 0,
+          if (_metadataControllers['current_price']?.text.isNotEmpty == true)
+            'current_price': double.tryParse(_metadataControllers['current_price']!.text) ?? 0,
         };
       } else if (_metadataControllers.isNotEmpty) {
         metadata = _metadataControllers.map((k, v) => MapEntry(k, v.text.trim()));
@@ -402,8 +404,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
 
   Widget _buildFinancialStep() {
     final isFinancial = _nature == 'financial';
-    final instrumentType = _metadataControllers['instrument_type']?.text ?? '';
-    final isDepositOrCash = ['cd', 'money_market'].contains(instrumentType);
+    final isDepositOrCash = _instrumentType == 'cd' || _instrumentType == 'money_market';
     final needsShares = isFinancial && !isDepositOrCash;
 
     return Column(
@@ -411,16 +412,16 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
         TextFormField(
           controller: _purchasePriceController,
           decoration: InputDecoration(
-            labelText: needsShares ? '单价' : (isFinancial ? '总金额' : '购买价格'),
+            labelText: needsShares ? '你的买入单价' : (isFinancial ? '总金额' : '购买价格'),
             prefixText: '¥',
-            hintText: needsShares ? '每份/每股的价格' : null,
+            hintText: needsShares ? '你实际购买时的价格' : null,
           ),
           keyboardType: TextInputType.number,
         ),
         if (needsShares) ...[
           const SizedBox(height: 8),
           Text(
-            '提示：在下一步"详细信息"中填写份额后，总金额会自动计算',
+            '这是你实际买入的价格，不是当前市场价',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
         ],
@@ -549,23 +550,51 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
                   controller: _metadataControllers['ticker'],
                   decoration: const InputDecoration(
                     labelText: '代码 *',
-                    hintText: '如 600519.SH, 510300',
+                    hintText: '如 600519.SH, 110022',
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: () => _lookupInstrument(_instrumentType),
-                child: const Text('查询'),
+                icon: const Icon(Icons.search, size: 18),
+                label: const Text('查询'),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            '输入代码后点击查询，自动获取名称和价格',
+            '输入代码点击查询，获取当前市场价和名称',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
           const SizedBox(height: 16),
+
+          // 当前市场价（查询后显示，只读）
+          if (_metadataControllers['current_price']?.text.isNotEmpty == true)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer.withAlpha(64),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Theme.of(context).colorScheme.primary.withAlpha(64)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.trending_up, size: 20, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    '当前市场价: ¥${_metadataControllers['current_price']!.text}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (_metadataControllers['current_price']?.text.isNotEmpty == true)
+            const SizedBox(height: 16),
 
           // 份额
           TextFormField(
@@ -613,18 +642,19 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
       final name = data['name'] as String?;
 
       if (price != null) {
-        // 自动填充价格和名称
+        // 只自动填充名称（如果为空），不填充购买价格
         setState(() {
-          _purchasePriceController.text = price.toString();
           if (name != null && name.isNotEmpty && _nameController.text.isEmpty) {
             _nameController.text = name;
           }
+          // 将当前价格存到metadata控制器中
+          _metadataControllers['current_price']?.text = price.toString();
         });
 
         if (mounted) {
           final nameInfo = name != null ? ' ($name)' : '';
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('查询成功$nameInfo: 当前价格 ¥${price.toStringAsFixed(4)}')),
+            SnackBar(content: Text('查询成功$nameInfo: 当前市场价 ¥${price.toStringAsFixed(4)}')),
           );
         }
       } else {
