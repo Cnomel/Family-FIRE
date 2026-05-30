@@ -610,16 +610,21 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
 
       final data = response.data['data'];
       final price = data['price'] as double?;
+      final name = data['name'] as String?;
 
       if (price != null) {
-        // 自动填充价格到财务信息
+        // 自动填充价格和名称
         setState(() {
           _purchasePriceController.text = price.toString();
+          if (name != null && name.isNotEmpty && _nameController.text.isEmpty) {
+            _nameController.text = name;
+          }
         });
 
         if (mounted) {
+          final nameInfo = name != null ? ' ($name)' : '';
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('查询成功: 当前价格 ¥${price.toStringAsFixed(4)}')),
+            SnackBar(content: Text('查询成功$nameInfo: 当前价格 ¥${price.toStringAsFixed(4)}')),
           );
         }
       } else {

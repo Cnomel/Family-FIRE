@@ -319,14 +319,24 @@ async def lookup_instrument(
     """
     from app.finance.providers.price_service import PriceProviderFactory
 
-    # Determine provider based on instrument type
+    # Determine provider based on instrument type and ticker format
+    ticker = ticker.strip()
+
+    # Chinese fund codes: 6 digits, often starting with 1, 2, 3, 5, 6
+    is_chinese_fund = len(ticker) == 6 and ticker.isdigit()
+
     if instrument_type == "crypto":
         providers = ["coingecko"]
         currency = "USD"
     elif instrument_type == "stock":
+        # For Chinese stocks, try alphavantage first
         providers = ["alphavantage"]
         currency = "CNY"
-    else:  # fund/etf
+    elif is_chinese_fund:
+        # For Chinese fund codes, use eastmoney API
+        providers = ["china_fund"]
+        currency = "CNY"
+    else:  # fund/etf (international)
         providers = ["yahoo"]
         currency = "CNY"
 
@@ -340,6 +350,7 @@ async def lookup_instrument(
             "price": result["price"],
             "currency": result["currency"],
             "source": result["source"],
+            "name": result.get("name"),
         })
     else:
         return SuccessResponse(data={

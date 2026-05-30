@@ -187,6 +187,58 @@ class YahooFinanceProvider(PriceProvider):
         return results
 
 
+class ChinaFundProvider(PriceProvider):
+    """Provider for Chinese mutual funds using eastmoney API."""
+
+    async def get_price(self, symbol: str, currency: str = "CNY") -> dict[str, Any] | None:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                # eastmoney fund API
+                resp = await client.get(
+                    f"https://fundgz.1234567.com.cn/js/{symbol}.js",
+                    headers={"Referer": "https://fund.eastmoney.com/"},
+                )
+                if resp.status_code != 200:
+                    logger.warning("china_fund_no_data", symbol=symbol)
+                    return None
+
+                # Parse JSONP response: jsonpgz({"fundcode":"110022","name":"...",...})
+                text = resp.text
+                start = text.find("{")
+                end = text.rfind("}") + 1
+                if start < 0 or end <= 0:
+                    logger.warning("china_fund_parse_error", symbol=symbol)
+                    return None
+
+                import json
+                data = json.loads(text[start:end])
+                price = float(data.get("gsz", 0))
+                name = data.get("name", "")
+
+                if not price:
+                    logger.warning("china_fund_no_price", symbol=symbol)
+                    return None
+
+                return {
+                    "price": price,
+                    "currency": "CNY",
+                    "source": "eastmoney",
+                    "name": name,
+                    "timestamp": utcnow(),
+                }
+        except Exception as e:
+            logger.error("china_fund_error", symbol=symbol, error=str(e))
+            return None
+
+    async def get_batch_prices(self, symbols: list[str]) -> dict[str, float]:
+        results = {}
+        for symbol in symbols:
+            price_info = await self.get_price(symbol)
+            if price_info:
+                results[symbol] = price_info["price"]
+        return results
+
+
 class PriceProviderFactory:
     """Factory to get the appropriate price provider."""
 
@@ -194,6 +246,7 @@ class PriceProviderFactory:
         "alphavantage": AlphaVantageProvider,
         "coingecko": CoinGeckoProvider,
         "yahoo": YahooFinanceProvider,
+        "china_fund": ChinaFundProvider,
     }
 
     @classmethod
