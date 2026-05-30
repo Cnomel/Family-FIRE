@@ -460,20 +460,28 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
 
   Widget _buildFinancialMetadataStep() {
     // 确保控制器存在
-    _metadataControllers.putIfAbsent('instrument_type', () => TextEditingController(text: 'fund'));
-    _metadataControllers.putIfAbsent('ticker', () => TextEditingController());
-    _metadataControllers.putIfAbsent('exchange', () => TextEditingController());
-    _metadataControllers.putIfAbsent('shares', () => TextEditingController());
+    if (!_metadataControllers.containsKey('instrument_type')) {
+      _metadataControllers['instrument_type'] = TextEditingController(text: 'fund');
+    }
+    if (!_metadataControllers.containsKey('ticker')) {
+      _metadataControllers['ticker'] = TextEditingController();
+    }
+    if (!_metadataControllers.containsKey('exchange')) {
+      _metadataControllers['exchange'] = TextEditingController();
+    }
+    if (!_metadataControllers.containsKey('shares')) {
+      _metadataControllers['shares'] = TextEditingController();
+    }
 
     final instrumentType = _metadataControllers['instrument_type']!.text;
-    final isDepositOrCash = ['cd', 'money_market'].contains(instrumentType);
+    final isDepositOrCash = instrumentType == 'cd' || instrumentType == 'money_market';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 金融工具类型
         DropdownButtonFormField<String>(
-          value: instrumentType,
+          value: instrumentType.isNotEmpty ? instrumentType : 'fund',
           decoration: const InputDecoration(labelText: '金融工具类型'),
           items: const [
             DropdownMenuItem(value: 'fund', child: Text('基金')),
@@ -494,7 +502,29 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
         ),
         const SizedBox(height: 16),
 
-        // 股票/基金/ETF 需要输入代码
+        // 定期/货币基金只需说明
+        if (isDepositOrCash)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(128),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '定期存款和货币基金只需在"财务信息"步骤填写总金额，无需填写代码和份额',
+                    style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        // 股票/基金/ETF/债券/加密货币需要输入代码
         if (!isDepositOrCash) ...[
           Row(
             children: [
@@ -534,29 +564,6 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           Text(
             '份额 × 单价 = 总金额（自动填入财务信息）',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-          ),
-        ],
-
-        // 定期/货币基金只需说明
-        if (isDepositOrCash) ...[
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(128),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    '定期存款和货币基金只需在"财务信息"步骤填写购买总金额',
-                    style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ],
