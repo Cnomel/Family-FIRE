@@ -73,17 +73,20 @@ final currentFamilyProvider = FutureProvider<Map<String, dynamic>?>((ref) async 
   try {
     final client = ref.read(apiClientProvider);
     final response = await client.get('/api/families/current');
-    return response.data['data'];
-  } catch (_) {
+    final data = response.data['data'];
+    // 如果返回的数据是 null 或者空对象，返回 null
+    if (data == null || (data is Map && data.isEmpty)) {
+      return null;
+    }
+    return data;
+  } catch (e) {
+    // 任何错误都返回 null（包括 404）
     return null;
   }
 });
 
-/// 获取FIRE快照（仅在有家庭时请求）
+/// 获取FIRE快照
 final fireSnapshotProvider = FutureProvider<FireSnapshot?>((ref) async {
-  final family = await ref.watch(currentFamilyProvider.future);
-  if (family == null) return null;
-
   try {
     final client = ref.read(apiClientProvider);
     final response = await client.get('/api/families/current/finance/fire/snapshot');
@@ -93,11 +96,8 @@ final fireSnapshotProvider = FutureProvider<FireSnapshot?>((ref) async {
   }
 });
 
-/// 获取资产统计（仅在有家庭时请求）
+/// 获取资产统计
 final assetStatsProvider = FutureProvider<AssetStats?>((ref) async {
-  final family = await ref.watch(currentFamilyProvider.future);
-  if (family == null) return null;
-
   try {
     final client = ref.read(apiClientProvider);
     final response = await client.get('/api/families/current/assets/stats');
@@ -126,16 +126,7 @@ class DashboardPage extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         children: [
           // 无家庭提醒
-          familyAsync.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-            data: (family) {
-              if (family == null) {
-                return _NoFamilyCard();
-              }
-              return const SizedBox.shrink();
-            },
-          ),
+          _buildFamilyWarning(context, familyAsync),
 
           // 净资产Hero卡片
           _NetWorthCard(fireAsync: fireAsync),
@@ -157,6 +148,25 @@ class DashboardPage extends ConsumerWidget {
           _FeatureGrid(),
         ],
       ),
+    );
+  }
+
+  Widget _buildFamilyWarning(BuildContext context, AsyncValue<Map<String, dynamic>?> familyAsync) {
+    return familyAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (family) {
+        // 如果没有家庭数据，显示提醒卡片
+        if (family == null || family.isEmpty) {
+          return Column(
+            children: [
+              _NoFamilyCard(),
+              const SizedBox(height: 16),
+            ],
+          );
+        }
+        return const SizedBox.shrink();
+      },
     );
   }
 }
