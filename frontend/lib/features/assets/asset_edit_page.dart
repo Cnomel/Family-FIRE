@@ -215,24 +215,116 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildDropdown('性质', _nature, [
-          ('tangible', '有形资产'), ('digital', '数字资产'), ('financial', '金融资产'),
-          ('intangible', '无形资产'), ('service', '服务'),
+        // 常见资产模板
+        const Text('快速选择', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Text('点击即可自动填充分类', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildTemplateChip('房产', Icons.home, 'tangible', 'essential', 'owned', 'low'),
+            _buildTemplateChip('汽车', Icons.directions_car, 'tangible', 'essential', 'owned', 'low'),
+            _buildTemplateChip('股票', Icons.show_chart, 'financial', 'speculative', 'custodied', 'high'),
+            _buildTemplateChip('基金', Icons.pie_chart, 'financial', 'productive', 'custodied', 'high'),
+            _buildTemplateChip('存款', Icons.savings, 'financial', 'protective', 'owned', 'instant'),
+            _buildTemplateChip('理财产品', Icons.trending_up, 'financial', 'productive', 'custodied', 'medium'),
+            _buildTemplateChip('保险', Icons.shield, 'service', 'protective', 'subscribed', 'fixed'),
+            _buildTemplateChip('订阅服务', Icons.subscriptions, 'service', 'lifestyle', 'subscribed', 'instant'),
+            _buildTemplateChip('家电', Icons.kitchen, 'tangible', 'lifestyle', 'owned', 'low'),
+            _buildTemplateChip('数码产品', Icons.devices, 'tangible', 'lifestyle', 'owned', 'medium'),
+            _buildTemplateChip('收藏品', Icons.brush, 'tangible', 'speculative', 'owned', 'low'),
+            _buildTemplateChip('虚拟账号', Icons.account_circle, 'digital', 'lifestyle', 'licensed', 'fixed'),
+          ],
+        ),
+        const SizedBox(height: 24),
+        const Divider(),
+        const SizedBox(height: 16),
+
+        // 手动选择
+        const Text('手动分类', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 16),
+
+        _buildDropdownWithHint('性质', _nature, [
+          ('tangible', '有形资产', '实物存在的物品，如房产、车辆、家电'),
+          ('digital', '数字资产', '数字空间的资产，如账号、数据、虚拟物品'),
+          ('financial', '金融资产', '货币或证券形式，如股票、基金、存款'),
+          ('intangible', '无形资产', '无实物但有价值的权利，如专利、商标'),
+          ('service', '服务', '持续消费的服务，如保险、订阅、会员'),
         ], (v) => setState(() => _nature = v)),
         const SizedBox(height: 16),
-        _buildDropdown('用途', _utility, [
-          ('productive', '生产性'), ('consumable', '消耗品'), ('protective', '防护性'),
-          ('speculative', '投机性'), ('lifestyle', '生活方式'), ('essential', '必需品'),
+
+        _buildDropdownWithHint('用途', _utility, [
+          ('productive', '生产性', '能产生收益，如出租房、投资组合'),
+          ('consumable', '消耗品', '使用后会减少，如日用品、食品'),
+          ('protective', '防护性', '提供保障，如保险、应急基金'),
+          ('speculative', '投机性', '以增值为目的的高风险资产'),
+          ('lifestyle', '生活方式', '提升生活品质但不产生收益'),
+          ('essential', '必需品', '生活必需的基础设施'),
         ], (v) => setState(() => _utility = v)),
         const SizedBox(height: 16),
-        _buildDropdown('持有方式', _ownership, [
-          ('owned', '自有'), ('mortgaged', '抵押'), ('leased', '租赁'),
-          ('subscribed', '订阅'), ('licensed', '授权'), ('custodied', '托管'),
+
+        _buildDropdownWithHint('持有方式', _ownership, [
+          ('owned', '自有', '完全拥有所有权'),
+          ('mortgaged', '抵押', '贷款购买，银行持有抵押权'),
+          ('leased', '租赁', '租来的资产，不拥有所有权'),
+          ('subscribed', '订阅', '定期付费获取使用权'),
+          ('licensed', '授权', '通过授权/许可获得使用权'),
+          ('custodied', '托管', '由第三方机构代为保管'),
         ], (v) => setState(() => _ownership = v)),
         const SizedBox(height: 16),
-        _buildDropdown('流动性', _liquidity, [
-          ('instant', '即时'), ('high', '高'), ('medium', '中'), ('low', '低'), ('fixed', '固定'),
+
+        _buildDropdownWithHint('流动性', _liquidity, [
+          ('instant', '即时', '秒级变现，如活期存款、余额宝'),
+          ('high', '高', '天级变现，如股票、ETF'),
+          ('medium', '中', '周/月级变现，如理财产品'),
+          ('low', '低', '月/年级变现，如房产、车辆'),
+          ('fixed', '固定', '到期前无法变现，如定期存款'),
         ], (v) => setState(() => _liquidity = v)),
+      ],
+    );
+  }
+
+  Widget _buildTemplateChip(String label, IconData icon, String nature, String utility, String ownership, String liquidity) {
+    final isSelected = _nature == nature && _utility == utility && _ownership == ownership && _liquidity == liquidity;
+    return ActionChip(
+      avatar: Icon(icon, size: 18, color: isSelected ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.primary),
+      label: Text(label),
+      backgroundColor: isSelected ? Theme.of(context).colorScheme.primary : null,
+      labelStyle: TextStyle(color: isSelected ? Theme.of(context).colorScheme.onPrimary : null),
+      onPressed: () {
+        setState(() {
+          _nature = nature;
+          _utility = utility;
+          _ownership = ownership;
+          _liquidity = liquidity;
+        });
+      },
+    );
+  }
+
+  Widget _buildDropdownWithHint(String label, String value, List<(String, String, String)> options, ValueChanged<String> onChanged) {
+    final currentHint = options.where((o) => o.$1 == value).map((o) => o.$3).firstOrNull ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String>(
+          value: value,
+          decoration: InputDecoration(labelText: label),
+          items: options.map((opt) => DropdownMenuItem(
+            value: opt.$1,
+            child: Text(opt.$2),
+          )).toList(),
+          onChanged: (v) {
+            if (v != null) onChanged(v);
+          },
+        ),
+        if (currentHint.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 4, left: 12),
+            child: Text(currentHint, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+          ),
       ],
     );
   }
@@ -371,17 +463,6 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           ('notes', '备注', 'text'),
         ];
     }
-  }
-
-  Widget _buildDropdown(String label, String value, List<(String, String)> options, ValueChanged<String> onChanged) {
-    return DropdownButtonFormField<String>(
-      value: value,
-      decoration: InputDecoration(labelText: label),
-      items: options.map((opt) => DropdownMenuItem(value: opt.$1, child: Text(opt.$2))).toList(),
-      onChanged: (v) {
-        if (v != null) onChanged(v);
-      },
-    );
   }
 
   Future<void> _addTag() async {
