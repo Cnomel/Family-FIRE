@@ -1,94 +1,211 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
-class InvitePage extends StatelessWidget {
+import '../../core/api/api_client.dart';
+
+class InvitePage extends ConsumerStatefulWidget {
   final String familyId;
   final String? inviteCode;
 
   const InvitePage({super.key, required this.familyId, this.inviteCode});
 
   @override
-  Widget build(BuildContext context) {
-    final code = inviteCode ?? '';
+  ConsumerState<InvitePage> createState() => _InvitePageState();
+}
 
+class _InvitePageState extends ConsumerState<InvitePage> {
+  String _code = '';
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.inviteCode != null && widget.inviteCode!.isNotEmpty) {
+      _code = widget.inviteCode!;
+      _isLoading = false;
+    } else {
+      _loadOrGenerateCode();
+    }
+  }
+
+  Future<void> _loadOrGenerateCode() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final client = ref.read(apiClientProvider);
+
+      // 先尝试从家庭详情获取已有邀请码
+      try {
+        final familyResponse = await client.get('/api/families/${widget.familyId}');
+        final existingCode = familyResponse.data['data']?['invite_code'];
+        if (existingCode != null && existingCode.toString().isNotEmpty) {
+          if (mounted) {
+            setState(() {
+              _code = existingCode.toString();
+              _isLoading = false;
+            });
+            return;
+          }
+        }
+      } catch (_) {}
+
+      // 没有已有邀请码，生成新的
+      final response = await client.post('/api/families/${widget.familyId}/invite');
+      final code = response.data['data']?['invite_code'];
+      if (mounted) {
+        setState(() {
+          _code = code?.toString() ?? '';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = '生成邀请码失败，请重试';
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('邀请成员')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                '邀请码',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                code,
-                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 4),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                '邀请码有效期7天',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 32),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? _buildError(context)
+              : _buildContent(context),
+    );
+  }
 
-              // QR Code
-              if (code.isNotEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: QrImageView(
-                    data: code,
-                    version: QrVersions.auto,
-                    size: 200,
-                    backgroundColor: Colors.white,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 32),
+  Widget _buildError(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
+            const SizedBox(height: 16),
+            Text(_error!, style: const TextStyle(fontSize: 16)),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadOrGenerateCode,
+              child: const Text('重试'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-              // 操作按钮
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: code));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('已复制到剪贴板')),
-                      );
-                    },
-                    icon: const Icon(Icons.copy),
-                    label: const Text('复制'),
-                  ),
-                  const SizedBox(width: 16),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Share.share('邀请你加入我的家庭！邀请码: $code');
-                    },
-                    icon: const Icon(Icons.share),
-                    label: const Text('分享'),
+  Widget _buildContent(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        children: [
+          const SizedBox(height: 24),
+          const Text(
+            '邀请码',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
+          ),
+          const SizedBox(height: 12),
+          SelectableText(
+            _code,
+            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 4),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '邀请码有效期7天',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 32),
+
+          // QR Code
+          if (_code.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(25),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
+              child: QrImageView(
+                data: _code,
+                version: QrVersions.auto,
+                size: 200,
+                backgroundColor: Colors.white,
+              ),
+            ),
+          ],
+          const SizedBox(height: 32),
+
+          // 操作按钮
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton.icon(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: _code));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('已复制到剪贴板')),
+                  );
+                },
+                icon: const Icon(Icons.copy),
+                label: const Text('复制'),
+              ),
+              const SizedBox(width: 16),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Share.share('邀请你加入我的家庭！邀请码: $_code');
+                },
+                icon: const Icon(Icons.share),
+                label: const Text('分享'),
+              ),
             ],
           ),
-        ),
+          const SizedBox(height: 32),
+
+          // 提示信息
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(128),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '将邀请码分享给家庭成员，他们可以通过此码加入你的家庭',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

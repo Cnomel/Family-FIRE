@@ -120,7 +120,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       // Family
       GoRoute(path: '/family', builder: (_, __) => const FamilyListPage()),
       GoRoute(path: '/family/:id', builder: (_, state) => FamilyDetailPage(familyId: state.pathParameters['id']!)),
-      GoRoute(path: '/family/:id/invite', builder: (_, state) => InvitePage(familyId: state.pathParameters['id']!)),
+      GoRoute(path: '/family/:id/invite', builder: (_, state) => InvitePage(familyId: state.pathParameters['id']!, inviteCode: state.extra as String?)),
 
       // Settings
       GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
