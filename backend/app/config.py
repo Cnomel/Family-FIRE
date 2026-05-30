@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     DEFAULT_MAX_FAMILIES_PER_USER: int = 3
 
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8080"]
+    CORS_ORIGINS: list[str] = ["*"]
 
     @field_validator("DATABASE_URL", mode="before")
     @classmethod

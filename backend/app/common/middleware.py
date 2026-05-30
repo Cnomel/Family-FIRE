@@ -65,16 +65,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if self.disabled:
             return await call_next(request)
 
-        # Skip rate limiting for health check and if disabled via app state
-        if request.url.path == "/health":
+        # Skip rate limiting for health check and OPTIONS
+        if request.url.path == "/health" or request.method == "OPTIONS":
             return await call_next(request)
 
         # Check if rate limiting is disabled (for testing)
         app = request.scope.get("app")
         if app and getattr(app.state, "rate_limit_disabled", False):
-            return await call_next(request)
-        # Skip rate limiting for health check
-        if request.url.path == "/health":
             return await call_next(request)
 
         client_ip = request.client.host if request.client else "unknown"
@@ -124,17 +121,29 @@ class CORSMiddleware(BaseHTTPMiddleware):
         self.allow_credentials = allow_credentials
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        # Handle preflight OPTIONS requests immediately
         if request.method == "OPTIONS":
-            response = Response()
+            response = Response(status_code=204)
         else:
             response = await call_next(request)
 
+        # Get origin from request
         origin = request.headers.get("origin", "")
-        if origin in self.allow_origins or "*" in self.allow_origins:
+
+        # Set CORS headers
+        if "*" in self.allow_origins:
+            # Allow all origins
+            response.headers["Access-Control-Allow-Origin"] = origin if origin else "*"
+        elif origin in self.allow_origins:
             response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Methods"] = ", ".join(self.allow_methods)
-            response.headers["Access-Control-Allow-Headers"] = ", ".join(self.allow_headers)
-            if self.allow_credentials:
-                response.headers["Access-Control-Allow-Credentials"] = "true"
+
+        response.headers["Access-Control-Allow-Methods"] = ", ".join(self.allow_methods)
+        response.headers["Access-Control-Allow-Headers"] = ", ".join(self.allow_headers)
+
+        if self.allow_credentials:
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+
+        # Allow browser to access these headers
+        response.headers["Access-Control-Expose-Headers"] = "X-Request-ID, Content-Type"
 
         return response

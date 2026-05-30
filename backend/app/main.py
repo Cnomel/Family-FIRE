@@ -12,7 +12,6 @@ from app.common.exceptions import (
 )
 from app.common.logging import get_logger, setup_logging
 from app.common.middleware import (
-    CORSMiddleware,
     RateLimitMiddleware,
     RequestIDMiddleware,
     RequestLoggingMiddleware,
@@ -58,11 +57,14 @@ def create_app() -> FastAPI:
 
     # === Middleware (order matters: last added = first executed) ===
 
-    # CORS
+    # CORS — 使用 FastAPI 内置的 CORSMiddleware，更可靠
+    from fastapi.middleware.cors import CORSMiddleware as FastAPICORSMiddleware
     app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
-        allow_credentials=True,
+        FastAPICORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     # Rate limiting
