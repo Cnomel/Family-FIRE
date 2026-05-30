@@ -181,17 +181,20 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             const SizedBox(height: 16),
           ],
 
-          // 净资产Hero卡片
-          _NetWorthCard(fireSnapshot: _fireSnapshot, loaded: _familyChecked && _hasFamily),
-          const SizedBox(height: 16),
+          // 有家庭时显示财务数据卡片
+          if (_hasFamily) ...[
+            // 净资产Hero卡片
+            _NetWorthCard(fireSnapshot: _fireSnapshot, loaded: _familyChecked),
+            const SizedBox(height: 16),
 
-          // FIRE指标行
-          _FireMetricsRow(fireSnapshot: _fireSnapshot),
-          const SizedBox(height: 16),
+            // FIRE指标行
+            _FireMetricsRow(fireSnapshot: _fireSnapshot),
+            const SizedBox(height: 16),
 
-          // 资产配置饼图
-          _AllocationCard(assetStats: _assetStats),
-          const SizedBox(height: 16),
+            // 资产配置饼图
+            _AllocationCard(assetStats: _assetStats),
+            const SizedBox(height: 16),
+          ],
 
           // 快捷操作
           _QuickActions(),
