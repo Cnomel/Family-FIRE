@@ -256,10 +256,10 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           children: [
             _buildTemplateChip('房产', Icons.home, 'tangible', 'essential', 'owned', 'low'),
             _buildTemplateChip('汽车', Icons.directions_car, 'tangible', 'essential', 'owned', 'low'),
-            _buildTemplateChip('股票', Icons.show_chart, 'financial', 'speculative', 'custodied', 'high'),
-            _buildTemplateChip('基金', Icons.pie_chart, 'financial', 'productive', 'custodied', 'high'),
-            _buildTemplateChip('存款', Icons.savings, 'financial', 'protective', 'owned', 'instant'),
-            _buildTemplateChip('理财产品', Icons.trending_up, 'financial', 'productive', 'custodied', 'medium'),
+            _buildTemplateChip('股票', Icons.show_chart, 'financial', 'speculative', 'custodied', 'high', instrumentType: 'stock'),
+            _buildTemplateChip('基金', Icons.pie_chart, 'financial', 'productive', 'custodied', 'high', instrumentType: 'fund'),
+            _buildTemplateChip('存款', Icons.savings, 'financial', 'protective', 'owned', 'instant', instrumentType: 'cd'),
+            _buildTemplateChip('理财产品', Icons.trending_up, 'financial', 'productive', 'custodied', 'medium', instrumentType: 'fund'),
             _buildTemplateChip('保险', Icons.shield, 'service', 'protective', 'subscribed', 'fixed'),
             _buildTemplateChip('订阅服务', Icons.subscriptions, 'service', 'lifestyle', 'subscribed', 'instant'),
             _buildTemplateChip('家电', Icons.kitchen, 'tangible', 'lifestyle', 'owned', 'low'),
@@ -316,7 +316,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
     );
   }
 
-  Widget _buildTemplateChip(String label, IconData icon, String nature, String utility, String ownership, String liquidity) {
+  Widget _buildTemplateChip(String label, IconData icon, String nature, String utility, String ownership, String liquidity, {String? instrumentType}) {
     final isSelected = _nature == nature && _utility == utility && _ownership == ownership && _liquidity == liquidity;
     return ActionChip(
       avatar: Icon(icon, size: 18, color: isSelected ? Theme.of(context).colorScheme.onPrimary : Theme.of(context).colorScheme.primary),
@@ -329,6 +329,9 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           _utility = utility;
           _ownership = ownership;
           _liquidity = liquidity;
+          if (instrumentType != null) {
+            _instrumentType = instrumentType;
+          }
         });
       },
     );
