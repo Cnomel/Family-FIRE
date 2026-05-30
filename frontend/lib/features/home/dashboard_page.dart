@@ -606,7 +606,7 @@ class _NoFamilyCard extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,
-                color: Theme.of(context).colorScheme.onPrimaryContainer.withValues(alpha: 0.8),
+                color: Theme.of(context).colorScheme.onPrimaryContainer.withAlpha(204),
               ),
             ),
             const SizedBox(height: 16),
@@ -641,7 +641,7 @@ class _NoFamilyCard extends StatelessWidget {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('加入家庭'),
         content: TextField(
           controller: codeController,
@@ -652,13 +652,12 @@ class _NoFamilyCard extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('取消'),
           ),
           ElevatedButton(
-            onPressed: () async {
-              // 加入家庭的逻辑会在家庭管理页面处理
-              Navigator.pop(ctx);
+            onPressed: () {
+              Navigator.pop(dialogContext);
               context.push('/family');
             },
             child: const Text('加入'),
