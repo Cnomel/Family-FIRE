@@ -4,14 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 import '../../core/api/api_client.dart';
-import '../../core/api/api_exception.dart';
 import '../../shared/widgets/amount_text.dart';
 import '../../shared/widgets/skeleton.dart';
 import '../../shared/theme/colors.dart';
 import '../../shared/formatters/currency.dart';
 import '../../shared/formatters/number.dart';
 
-/// FIRE快照数据
 class FireSnapshot {
   final double netWorth;
   final double fireNumber;
@@ -32,7 +30,6 @@ class FireSnapshot {
   });
 
   factory FireSnapshot.fromJson(Map<String, dynamic> json) {
-    // net_worth 可能是嵌套对象或数字
     final nw = json['net_worth'];
     final netWorthValue = (nw is Map) ? toDouble(nw['net_worth']) : toDouble(nw);
     return FireSnapshot(
@@ -47,7 +44,6 @@ class FireSnapshot {
   }
 }
 
-/// 资产统计
 class AssetStats {
   final int totalCount;
   final double totalValue;
@@ -68,76 +64,133 @@ class AssetStats {
   }
 }
 
-/// 获取当前家庭
-final currentFamilyProvider = FutureProvider<Map<String, dynamic>?>((ref) async {
-  try {
-    final client = ref.read(apiClientProvider);
-    final response = await client.get('/api/families/current');
-    final data = response.data['data'];
-    // 如果返回的数据是 null 或者空对象，返回 null
-    if (data == null || (data is Map && data.isEmpty)) {
-      return null;
-    }
-    return data;
-  } catch (e) {
-    // 任何错误都返回 null（包括 404）
-    return null;
-  }
-});
-
-/// 获取FIRE快照
-final fireSnapshotProvider = FutureProvider<FireSnapshot?>((ref) async {
-  try {
-    final client = ref.read(apiClientProvider);
-    final response = await client.get('/api/families/current/finance/fire/snapshot');
-    return FireSnapshot.fromJson(response.data['data']);
-  } catch (_) {
-    return null;
-  }
-});
-
-/// 获取资产统计
-final assetStatsProvider = FutureProvider<AssetStats?>((ref) async {
-  try {
-    final client = ref.read(apiClientProvider);
-    final response = await client.get('/api/families/current/assets/stats');
-    return AssetStats.fromJson(response.data['data']);
-  } catch (_) {
-    return null;
-  }
-});
-
-class DashboardPage extends ConsumerWidget {
+class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final fireAsync = ref.watch(fireSnapshotProvider);
-    final statsAsync = ref.watch(assetStatsProvider);
-    final familyAsync = ref.watch(currentFamilyProvider);
+  ConsumerState<DashboardPage> createState() => _DashboardPageState();
+}
 
+class _DashboardPageState extends ConsumerState<DashboardPage> {
+  bool _hasFamily = true; // 默认假设有家庭，避免闪烁
+  bool _familyChecked = false;
+  FireSnapshot? _fireSnapshot;
+  AssetStats? _assetStats;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final client = ref.read(apiClientProvider);
+
+      // 检查是否有家庭
+      Map<String, dynamic>? familyData;
+      try {
+        final familyResponse = await client.get('/api/families/current');
+        familyData = familyResponse.data['data'];
+      } catch (_) {
+        familyData = null;
+      }
+
+      final hasFamily = familyData != null &&
+          familyData.isNotEmpty &&
+          familyData['id'] != null;
+
+      if (!mounted) return;
+
+      setState(() {
+        _hasFamily = hasFamily;
+        _familyChecked = true;
+      });
+
+      // 只有有家庭时才加载财务数据
+      if (hasFamily) {
+        _loadFinancialData();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _hasFamily = false;
+          _familyChecked = true;
+        });
+      }
+    }
+  }
+
+  Future<void> _loadFinancialData() async {
+    try {
+      final client = ref.read(apiClientProvider);
+
+      // 并行加载两个请求
+      final responses = await Future.wait([
+        client.get('/api/families/current/finance/fire/snapshot'),
+        client.get('/api/families/current/assets/stats'),
+      ]);
+
+      if (!mounted) return;
+
+      setState(() {
+        _fireSnapshot = FireSnapshot.fromJson(responses[0].data['data']);
+        _assetStats = AssetStats.fromJson(responses[1].data['data']);
+      });
+    } catch (_) {
+      // 某个请求失败时单独尝试
+      try {
+        final client = ref.read(apiClientProvider);
+        final fireResponse = await client.get('/api/families/current/finance/fire/snapshot');
+        if (mounted) {
+          setState(() {
+            _fireSnapshot = FireSnapshot.fromJson(fireResponse.data['data']);
+          });
+        }
+      } catch (_) {}
+
+      try {
+        final client = ref.read(apiClientProvider);
+        final statsResponse = await client.get('/api/families/current/assets/stats');
+        if (mounted) {
+          setState(() {
+            _assetStats = AssetStats.fromJson(statsResponse.data['data']);
+          });
+        }
+      } catch (_) {}
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return RefreshIndicator(
       onRefresh: () async {
-        ref.invalidate(fireSnapshotProvider);
-        ref.invalidate(assetStatsProvider);
-        ref.invalidate(currentFamilyProvider);
+        setState(() {
+          _familyChecked = false;
+          _fireSnapshot = null;
+          _assetStats = null;
+        });
+        await _loadData();
       },
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
           // 无家庭提醒
-          _buildFamilyWarning(context, familyAsync),
+          if (_familyChecked && !_hasFamily) ...[
+            _NoFamilyCard(),
+            const SizedBox(height: 16),
+          ],
 
           // 净资产Hero卡片
-          _NetWorthCard(fireAsync: fireAsync),
+          _NetWorthCard(fireSnapshot: _fireSnapshot, loaded: _familyChecked && _hasFamily),
           const SizedBox(height: 16),
 
           // FIRE指标行
-          _FireMetricsRow(fireAsync: fireAsync),
+          _FireMetricsRow(fireSnapshot: _fireSnapshot),
           const SizedBox(height: 16),
 
           // 资产配置饼图
-          _AllocationCard(statsAsync: statsAsync),
+          _AllocationCard(assetStats: _assetStats),
           const SizedBox(height: 16),
 
           // 快捷操作
@@ -150,36 +203,83 @@ class DashboardPage extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _buildFamilyWarning(BuildContext context, AsyncValue<Map<String, dynamic>?> familyAsync) {
-    return familyAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (family) {
-        // 如果没有家庭数据，显示提醒卡片
-        if (family == null || family.isEmpty) {
-          return Column(
-            children: [
-              _NoFamilyCard(),
-              const SizedBox(height: 16),
-            ],
-          );
-        }
-        return const SizedBox.shrink();
-      },
+// ============================================================
+// 无家庭提醒卡片
+// ============================================================
+
+class _NoFamilyCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Theme.of(context).colorScheme.primaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            Icon(
+              Icons.family_restroom,
+              size: 56,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '欢迎使用 Family Fire！',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '您还没有创建或加入家庭\n创建家庭后即可开始管理家庭资产',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onPrimaryContainer.withAlpha(204),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FilledButton.icon(
+                  onPressed: () => context.push('/family'),
+                  icon: const Icon(Icons.add),
+                  label: const Text('创建家庭'),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: () => context.push('/family'),
+                  icon: const Icon(Icons.group_add),
+                  label: const Text('加入家庭'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _NetWorthCard extends StatelessWidget {
-  final AsyncValue<FireSnapshot?> fireAsync;
+// ============================================================
+// 净资产卡片
+// ============================================================
 
-  const _NetWorthCard({required this.fireAsync});
+class _NetWorthCard extends StatelessWidget {
+  final FireSnapshot? fireSnapshot;
+  final bool loaded;
+
+  const _NetWorthCard({required this.fireSnapshot, required this.loaded});
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
@@ -192,100 +292,88 @@ class _NetWorthCard extends StatelessWidget {
             ],
           ),
         ),
-        child: fireAsync.when(
-          loading: () => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              Skeleton(width: 80, height: 14, borderRadius: 4),
-              SizedBox(height: 12),
-              Skeleton(width: 200, height: 32, borderRadius: 4),
-              SizedBox(height: 8),
-              Skeleton(width: 120, height: 14, borderRadius: 4),
-            ],
-          ),
-          error: (_, __) => const Text('加载失败', style: TextStyle(color: Colors.white)),
-          data: (fire) {
-            final netWorth = fire?.netWorth ?? 0;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  '净资产',
-                  style: TextStyle(color: Colors.white70, fontSize: 14),
-                ),
-                const SizedBox(height: 8),
-                AmountText(
-                  amount: netWorth,
-                  showColor: false,
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
-                const SizedBox(height: 8),
-                if (fire != null)
-                  Text(
-                    'FIRE数字: ${formatCurrency(fire.fireNumber)}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+        child: !loaded
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Skeleton(width: 80, height: 14, borderRadius: 4),
+                  SizedBox(height: 12),
+                  Skeleton(width: 200, height: 32, borderRadius: 4),
+                  SizedBox(height: 8),
+                  Skeleton(width: 120, height: 14, borderRadius: 4),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '净资产',
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
-              ],
-            );
-          },
-        ),
+                  const SizedBox(height: 8),
+                  AmountText(
+                    amount: fireSnapshot?.netWorth ?? 0,
+                    showColor: false,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  const SizedBox(height: 8),
+                  if (fireSnapshot != null)
+                    Text(
+                      'FIRE数字: ${formatCurrency(fireSnapshot!.fireNumber)}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                ],
+              ),
       ),
     );
   }
 }
 
-class _FireMetricsRow extends StatelessWidget {
-  final AsyncValue<FireSnapshot?> fireAsync;
+// ============================================================
+// FIRE指标行
+// ============================================================
 
-  const _FireMetricsRow({required this.fireAsync});
+class _FireMetricsRow extends StatelessWidget {
+  final FireSnapshot? fireSnapshot;
+
+  const _FireMetricsRow({required this.fireSnapshot});
 
   @override
   Widget build(BuildContext context) {
-    return fireAsync.when(
-      loading: () => Row(
-        children: const [
-          Expanded(child: Card(child: Padding(padding: EdgeInsets.all(16), child: Skeleton(height: 60)))),
-          SizedBox(width: 8),
-          Expanded(child: Card(child: Padding(padding: EdgeInsets.all(16), child: Skeleton(height: 60)))),
+    if (fireSnapshot == null) return const SizedBox.shrink();
+
+    return Row(
+      children: [
+        Expanded(
+          child: _MetricCard(
+            title: '储蓄率',
+            value: formatPercent(fireSnapshot!.savingsRate),
+            icon: Icons.savings,
+            color: AppColors.profit,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MetricCard(
+            title: 'FI比率',
+            value: '${(fireSnapshot!.fiRatio * 100).toStringAsFixed(1)}%',
+            icon: Icons.flag,
+            color: fireSnapshot!.fiRatio >= 1.0 ? AppColors.profit : AppColors.primary,
+          ),
+        ),
+        if (fireSnapshot!.yearsToFire != null) ...[
+          const SizedBox(width: 8),
+          Expanded(
+            child: _MetricCard(
+              title: '距FIRE',
+              value: '${fireSnapshot!.yearsToFire!.toStringAsFixed(1)}年',
+              icon: Icons.timer,
+              color: AppColors.primary,
+            ),
+          ),
         ],
-      ),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (fire) {
-        if (fire == null) return const SizedBox.shrink();
-        return Row(
-          children: [
-            Expanded(
-              child: _MetricCard(
-                title: '储蓄率',
-                value: formatPercent(fire.savingsRate),
-                icon: Icons.savings,
-                color: AppColors.profit,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _MetricCard(
-                title: 'FI比率',
-                value: '${(fire.fiRatio * 100).toStringAsFixed(1)}%',
-                icon: Icons.flag,
-                color: fire.fiRatio >= 1.0 ? AppColors.profit : AppColors.primary,
-              ),
-            ),
-            if (fire.yearsToFire != null) ...[
-              const SizedBox(width: 8),
-              Expanded(
-                child: _MetricCard(
-                  title: '距FIRE',
-                  value: '${fire.yearsToFire!.toStringAsFixed(1)}年',
-                  icon: Icons.timer,
-                  color: AppColors.primary,
-                ),
-              ),
-            ],
-          ],
-        );
-      },
+      ],
     );
   }
 }
@@ -335,10 +423,14 @@ class _MetricCard extends StatelessWidget {
   }
 }
 
-class _AllocationCard extends StatelessWidget {
-  final AsyncValue<AssetStats?> statsAsync;
+// ============================================================
+// 资产配置饼图
+// ============================================================
 
-  const _AllocationCard({required this.statsAsync});
+class _AllocationCard extends StatelessWidget {
+  final AssetStats? assetStats;
+
+  const _AllocationCard({required this.assetStats});
 
   @override
   Widget build(BuildContext context) {
@@ -359,38 +451,37 @@ class _AllocationCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            statsAsync.when(
-              loading: () => const Skeleton(height: 150),
-              error: (_, __) => const Text('加载失败'),
-              data: (stats) {
-                if (stats == null || stats.totalValue == 0) {
-                  return const SizedBox(
-                    height: 100,
-                    child: Center(child: Text('暂无资产数据')),
-                  );
-                }
-                return SizedBox(
-                  height: 180,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: PieChart(
-                          PieChartData(
-                            sections: _buildSections(stats.byNature, stats.totalValue),
-                            centerSpaceRadius: 40,
-                            sectionsSpace: 2,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      _buildLegend(stats.byNature),
-                    ],
-                  ),
-                );
-              },
-            ),
+            _buildContent(context),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
+    if (assetStats == null || assetStats!.totalValue == 0) {
+      return const SizedBox(
+        height: 100,
+        child: Center(child: Text('暂无资产数据')),
+      );
+    }
+
+    return SizedBox(
+      height: 180,
+      child: Row(
+        children: [
+          Expanded(
+            child: PieChart(
+              PieChartData(
+                sections: _buildSections(assetStats!.byNature, assetStats!.totalValue),
+                centerSpaceRadius: 40,
+                sectionsSpace: 2,
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          _buildLegend(assetStats!.byNature),
+        ],
       ),
     );
   }
@@ -463,6 +554,10 @@ class _AllocationCard extends StatelessWidget {
   }
 }
 
+// ============================================================
+// 快捷操作
+// ============================================================
+
 class _QuickActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -533,6 +628,10 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
+// ============================================================
+// 功能入口
+// ============================================================
+
 class _FeatureGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -586,99 +685,6 @@ class _FeatureGrid extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// 无家庭提醒卡片
-class _NoFamilyCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Theme.of(context).colorScheme.primaryContainer,
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Icon(
-              Icons.family_restroom,
-              size: 48,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '欢迎使用 Family Fire！',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '您还没有创建或加入家庭\n创建家庭后即可开始管理家庭资产',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Theme.of(context).colorScheme.onPrimaryContainer.withAlpha(204),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => context.push('/family'),
-                  icon: const Icon(Icons.add),
-                  label: const Text('创建家庭'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: () => _showJoinDialog(context),
-                  icon: const Icon(Icons.group_add),
-                  label: const Text('加入家庭'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showJoinDialog(BuildContext context) {
-    final codeController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('加入家庭'),
-        content: TextField(
-          controller: codeController,
-          decoration: const InputDecoration(
-            labelText: '邀请码',
-            hintText: '请输入6位邀请码',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('取消'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(dialogContext);
-              context.push('/family');
-            },
-            child: const Text('加入'),
-          ),
-        ],
       ),
     );
   }
