@@ -302,6 +302,55 @@ async def get_portfolio(
     return SuccessResponse(data=result)
 
 
+@router.get(
+    "/lookup/{ticker}",
+    response_model=SuccessResponse[dict],
+    summary="查询基金/股票信息",
+    description="根据代码查询基金/股票的名称和当前价格",
+)
+async def lookup_instrument(
+    ticker: str,
+    current_user: CurrentUser = None,
+    instrument_type: str = "fund",
+):
+    """Lookup fund/stock info by ticker symbol.
+
+    instrument_type: fund (基金/ETF), stock (股票), crypto (加密货币)
+    """
+    from app.finance.providers.price_service import PriceProviderFactory
+
+    # Determine provider based on instrument type
+    if instrument_type == "crypto":
+        providers = ["coingecko"]
+        currency = "USD"
+    elif instrument_type == "stock":
+        providers = ["alphavantage"]
+        currency = "CNY"
+    else:  # fund/etf
+        providers = ["yahoo"]
+        currency = "CNY"
+
+    result = await PriceProviderFactory.get_price_with_fallback(
+        ticker, providers, currency
+    )
+
+    if result:
+        return SuccessResponse(data={
+            "ticker": ticker,
+            "price": result["price"],
+            "currency": result["currency"],
+            "source": result["source"],
+        })
+    else:
+        return SuccessResponse(data={
+            "ticker": ticker,
+            "price": None,
+            "currency": currency,
+            "source": None,
+            "message": "未找到价格信息，请手动输入",
+        })
+
+
 # ============================================================
 # Price Endpoints
 # ============================================================

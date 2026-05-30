@@ -111,6 +111,17 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
 
     try {
       final client = ref.read(apiClientProvider);
+
+      // 金融资产：计算总金额 = 份额 × 单价
+      if (_nature == 'financial') {
+        final shares = double.tryParse(_metadataControllers['shares']?.text ?? '');
+        final unitPrice = double.tryParse(_purchasePriceController.text);
+        if (shares != null && unitPrice != null && shares > 0 && unitPrice > 0) {
+          // 将单价转换为总金额
+          _purchasePriceController.text = (shares * unitPrice).toString();
+        }
+      }
+
       final body = {
         'name': _nameController.text.trim(),
         'description': _descriptionController.text.trim().isEmpty
@@ -124,7 +135,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
         'purchase_price': double.tryParse(_purchasePriceController.text) ?? 0,
         'purchase_date': _purchaseDate?.toIso8601String(),
         'currency': _currencyController.text.trim(),
-        'metadata_type': _metadataType,
+        'metadata_type': _nature == 'financial' ? 'financial' : _metadataType,
         'metadata': _metadataControllers.isNotEmpty
             ? _metadataControllers.map((k, v) => MapEntry(k, v.text.trim()))
             : null,
@@ -368,13 +379,29 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
   }
 
   Widget _buildFinancialStep() {
+    final isFinancial = _nature == 'financial';
+    final instrumentType = _metadataControllers['instrument_type']?.text ?? '';
+    final isDepositOrCash = ['cd', 'money_market'].contains(instrumentType);
+    final needsShares = isFinancial && !isDepositOrCash;
+
     return Column(
       children: [
         TextFormField(
           controller: _purchasePriceController,
-          decoration: const InputDecoration(labelText: '购买价格', prefixText: '¥'),
+          decoration: InputDecoration(
+            labelText: needsShares ? '单价' : (isFinancial ? '总金额' : '购买价格'),
+            prefixText: '¥',
+            hintText: needsShares ? '每份/每股的价格' : null,
+          ),
           keyboardType: TextInputType.number,
         ),
+        if (needsShares) ...[
+          const SizedBox(height: 8),
+          Text(
+            '提示：在下一步"详细信息"中填写份额后，总金额会自动计算',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+        ],
         const SizedBox(height: 16),
         ListTile(
           contentPadding: EdgeInsets.zero,
@@ -403,7 +430,12 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
   }
 
   Widget _buildMetadataStep() {
-    // 根据分类动态生成元数据字段
+    // 金融资产使用特殊表单
+    if (_nature == 'financial') {
+      return _buildFinancialMetadataStep();
+    }
+
+    // 其他资产使用通用字段
     final fields = _getMetadataFields();
     if (fields.isEmpty) {
       return const Text('当前分类无需额外信息');
@@ -424,6 +456,164 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
         );
       }).toList(),
     );
+  }
+
+  Widget _buildFinancialMetadataStep() {
+    // 确保控制器存在
+    _metadataControllers.putIfAbsent('instrument_type', () => TextEditingController(text: 'fund'));
+    _metadataControllers.putIfAbsent('ticker', () => TextEditingController());
+    _metadataControllers.putIfAbsent('exchange', () => TextEditingController());
+    _metadataControllers.putIfAbsent('shares', () => TextEditingController());
+
+    final instrumentType = _metadataControllers['instrument_type']!.text;
+    final isDepositOrCash = ['cd', 'money_market'].contains(instrumentType);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 金融工具类型
+        DropdownButtonFormField<String>(
+          value: instrumentType,
+          decoration: const InputDecoration(labelText: '金融工具类型'),
+          items: const [
+            DropdownMenuItem(value: 'fund', child: Text('基金')),
+            DropdownMenuItem(value: 'etf', child: Text('ETF')),
+            DropdownMenuItem(value: 'stock', child: Text('股票')),
+            DropdownMenuItem(value: 'bond', child: Text('债券')),
+            DropdownMenuItem(value: 'money_market', child: Text('货币基金')),
+            DropdownMenuItem(value: 'cd', child: Text('定期存款')),
+            DropdownMenuItem(value: 'crypto', child: Text('加密货币')),
+          ],
+          onChanged: (v) {
+            if (v != null) {
+              setState(() {
+                _metadataControllers['instrument_type']!.text = v;
+              });
+            }
+          },
+        ),
+        const SizedBox(height: 16),
+
+        // 股票/基金/ETF 需要输入代码
+        if (!isDepositOrCash) ...[
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _metadataControllers['ticker'],
+                  decoration: const InputDecoration(
+                    labelText: '代码 *',
+                    hintText: '如 600519.SH, 510300',
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () => _lookupInstrument(instrumentType),
+                child: const Text('查询'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '输入代码后点击查询，自动获取名称和价格',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 16),
+
+          // 份额
+          TextFormField(
+            controller: _metadataControllers['shares'],
+            decoration: const InputDecoration(
+              labelText: '持有份额 *',
+              hintText: '如 1000',
+            ),
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '份额 × 单价 = 总金额（自动填入财务信息）',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+        ],
+
+        // 定期/货币基金只需说明
+        if (isDepositOrCash) ...[
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(128),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '定期存款和货币基金只需在"财务信息"步骤填写购买总金额',
+                    style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _lookupInstrument(String instrumentType) async {
+    final ticker = _metadataControllers['ticker']?.text.trim() ?? '';
+    if (ticker.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请输入代码')));
+      return;
+    }
+
+    // 显示加载中
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final client = ref.read(apiClientProvider);
+      final response = await client.get('/api/families/current/finance/lookup/$ticker', queryParams: {
+        'instrument_type': instrumentType,
+      });
+
+      if (mounted) Navigator.pop(context); // 关闭加载对话框
+
+      final data = response.data['data'];
+      final price = data['price'] as double?;
+
+      if (price != null) {
+        // 自动填充价格到财务信息
+        setState(() {
+          _purchasePriceController.text = price.toString();
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('查询成功: 当前价格 ¥${price.toStringAsFixed(4)}')),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('未找到价格信息，请手动输入')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context); // 关闭加载对话框
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('查询失败，请手动输入')),
+        );
+      }
+    }
   }
 
   List<(String, String, String)> _getMetadataFields() {
