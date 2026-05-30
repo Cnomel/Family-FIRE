@@ -79,8 +79,11 @@ final currentFamilyProvider = FutureProvider<Map<String, dynamic>?>((ref) async 
   }
 });
 
-/// 获取FIRE快照
+/// 获取FIRE快照（仅在有家庭时请求）
 final fireSnapshotProvider = FutureProvider<FireSnapshot?>((ref) async {
+  final family = await ref.watch(currentFamilyProvider.future);
+  if (family == null) return null;
+
   try {
     final client = ref.read(apiClientProvider);
     final response = await client.get('/api/families/current/finance/fire/snapshot');
@@ -90,8 +93,11 @@ final fireSnapshotProvider = FutureProvider<FireSnapshot?>((ref) async {
   }
 });
 
-/// 获取资产统计
+/// 获取资产统计（仅在有家庭时请求）
 final assetStatsProvider = FutureProvider<AssetStats?>((ref) async {
+  final family = await ref.watch(currentFamilyProvider.future);
+  if (family == null) return null;
+
   try {
     final client = ref.read(apiClientProvider);
     final response = await client.get('/api/families/current/assets/stats');
@@ -172,7 +178,7 @@ class _NetWorthCard extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: [
               Theme.of(context).colorScheme.primary,
-              Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+              Theme.of(context).colorScheme.primary.withAlpha(204),
             ],
           ),
         ),
