@@ -28,11 +28,16 @@ class _InvitePageState extends ConsumerState<InvitePage> {
       _code = widget.inviteCode!;
       _isLoading = false;
     } else {
-      _loadOrGenerateCode();
+      // 延迟到下一帧执行，确保 ref 可用
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadOrGenerateCode();
+      });
     }
   }
 
   Future<void> _loadOrGenerateCode() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
       _error = null;
@@ -44,24 +49,31 @@ class _InvitePageState extends ConsumerState<InvitePage> {
       // 先尝试从家庭详情获取已有邀请码
       try {
         final familyResponse = await client.get('/api/families/${widget.familyId}');
-        final existingCode = familyResponse.data['data']?['invite_code'];
-        if (existingCode != null && existingCode.toString().isNotEmpty) {
-          if (mounted) {
-            setState(() {
-              _code = existingCode.toString();
-              _isLoading = false;
-            });
+        final data = familyResponse.data['data'];
+        if (data != null) {
+          final existingCode = data['invite_code'];
+          if (existingCode != null && existingCode.toString().isNotEmpty) {
+            if (mounted) {
+              setState(() {
+                _code = existingCode.toString();
+                _isLoading = false;
+              });
+            }
             return;
           }
         }
-      } catch (_) {}
+      } catch (_) {
+        // 获取失败，继续生成新的
+      }
 
-      // 没有已有邀请码，生成新的
+      // 生成新的邀请码
       final response = await client.post('/api/families/${widget.familyId}/invite');
-      final code = response.data['data']?['invite_code'];
+      final data = response.data['data'];
+      final code = data?['invite_code']?.toString() ?? '';
+
       if (mounted) {
         setState(() {
-          _code = code?.toString() ?? '';
+          _code = code;
           _isLoading = false;
         });
       }
@@ -79,45 +91,42 @@ class _InvitePageState extends ConsumerState<InvitePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('邀请成员')),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? _buildError(context)
-              : _buildContent(context),
+      body: _buildBody(),
     );
   }
 
-  Widget _buildError(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
-            const SizedBox(height: 16),
-            Text(_error!, style: const TextStyle(fontSize: 16)),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _loadOrGenerateCode,
-              child: const Text('重试'),
-            ),
-          ],
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 48, color: Theme.of(context).colorScheme.error),
+              const SizedBox(height: 16),
+              Text(_error!, style: const TextStyle(fontSize: 16)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadOrGenerateCode,
+                child: const Text('重试'),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _buildContent(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(32),
       child: Column(
         children: [
           const SizedBox(height: 24),
-          const Text(
-            '邀请码',
-            style: TextStyle(fontSize: 16, color: Colors.grey),
-          ),
+          const Text('邀请码', style: TextStyle(fontSize: 16, color: Colors.grey)),
           const SizedBox(height: 12),
           SelectableText(
             _code,
@@ -125,14 +134,11 @@ class _InvitePageState extends ConsumerState<InvitePage> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
-          const Text(
-            '邀请码有效期7天',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
-          ),
+          const Text('邀请码有效期7天', style: TextStyle(fontSize: 12, color: Colors.grey)),
           const SizedBox(height: 32),
 
           // QR Code
-          if (_code.isNotEmpty) ...[
+          if (_code.isNotEmpty)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -153,7 +159,6 @@ class _InvitePageState extends ConsumerState<InvitePage> {
                 backgroundColor: Colors.white,
               ),
             ),
-          ],
           const SizedBox(height: 32),
 
           // 操作按钮
@@ -196,10 +201,7 @@ class _InvitePageState extends ConsumerState<InvitePage> {
                 Expanded(
                   child: Text(
                     '将邀请码分享给家庭成员，他们可以通过此码加入你的家庭',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                    style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 ),
               ],
