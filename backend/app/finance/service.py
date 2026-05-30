@@ -400,7 +400,7 @@ def _ie_to_response(r: IncomeExpenseRecord) -> IncomeExpenseResponse:
 async def create_transaction(
     db: AsyncSession, family_id: str, user_id: str, data: CreateTransactionRequest
 ) -> TransactionResponse:
-    """Record an investment transaction."""
+    """Record an investment transaction and sync asset data."""
     await _verify_family_member(db, family_id, user_id)
 
     transaction = Transaction(
@@ -419,8 +419,75 @@ async def create_transaction(
     db.add(transaction)
     await db.flush()
 
+    # Auto-sync asset financial data
+    await _sync_asset_after_transaction(db, data.asset_id)
+
     logger.info("transaction_created", type=data.type, asset_id=data.asset_id, total=data.total)
     return _transaction_to_response(transaction)
+
+
+async def _sync_asset_after_transaction(db: AsyncSession, asset_id: str) -> None:
+    """Sync asset financial metadata after a transaction is created/updated."""
+    from app.assets.models import AssetFinancial, AssetMetadataFinancial
+
+    # Calculate net shares and cost from transactions
+    buy_shares = (await db.execute(
+        select(func.coalesce(func.sum(Transaction.quantity), 0))
+        .where(Transaction.asset_id == asset_id, Transaction.type == "buy")
+    )).scalar() or 0
+
+    sell_shares = (await db.execute(
+        select(func.coalesce(func.sum(Transaction.quantity), 0))
+        .where(Transaction.asset_id == asset_id, Transaction.type == "sell")
+    )).scalar() or 0
+
+    buy_total = (await db.execute(
+        select(func.coalesce(func.sum(Transaction.total), 0))
+        .where(Transaction.asset_id == asset_id, Transaction.type == "buy")
+    )).scalar() or 0
+
+    sell_total = (await db.execute(
+        select(func.coalesce(func.sum(Transaction.total), 0))
+        .where(Transaction.asset_id == asset_id, Transaction.type == "sell")
+    )).scalar() or 0
+
+    net_shares = buy_shares - sell_shares
+
+    # Calculate remaining cost
+    if buy_shares > 0 and sell_shares > 0:
+        avg_buy_price = buy_total / buy_shares
+        cost_of_sold = avg_buy_price * sell_shares
+        remaining_cost = buy_total - cost_of_sold
+    else:
+        remaining_cost = buy_total
+
+    # Update AssetFinancial.current_value
+    financial_stmt = select(AssetFinancial).where(AssetFinancial.asset_id == asset_id)
+    financial_result = await db.execute(financial_stmt)
+    financial = financial_result.scalar_one_or_none()
+
+    if financial:
+        financial.current_value = remaining_cost
+        await db.flush()
+
+    # Update AssetMetadataFinancial
+    metadata_stmt = select(AssetMetadataFinancial).where(AssetMetadataFinancial.asset_id == asset_id)
+    metadata_result = await db.execute(metadata_stmt)
+    metadata = metadata_result.scalar_one_or_none()
+
+    if metadata:
+        metadata.shares = net_shares if net_shares > 0 else None
+        metadata.average_cost_basis = (remaining_cost / net_shares) if net_shares > 0 else None
+        # Update current_price if transaction has price info
+        last_tx = (await db.execute(
+            select(Transaction)
+            .where(Transaction.asset_id == asset_id, Transaction.price.isnot(None))
+            .order_by(Transaction.date.desc())
+            .limit(1)
+        )).scalar_one_or_none()
+        if last_tx and last_tx.price:
+            metadata.current_price = last_tx.price
+        await db.flush()
 
 
 async def list_transactions(
@@ -537,6 +604,153 @@ def _transaction_to_response(t: Transaction) -> TransactionResponse:
         notes=t.notes,
         created_at=t.created_at,
     )
+
+
+# ============================================================
+# Portfolio Aggregation
+# ============================================================
+
+async def get_portfolio(
+    db: AsyncSession, family_id: str, user_id: str
+) -> dict[str, Any]:
+    """Get aggregated portfolio view grouped by asset."""
+    await _verify_family_member(db, family_id, user_id)
+
+    from app.assets.models import Asset, AssetFinancial, AssetMetadataFinancial
+
+    # Query all financial assets with their financial data
+    stmt = (
+        select(Asset, AssetFinancial, AssetMetadataFinancial)
+        .join(AssetFinancial, AssetFinancial.asset_id == Asset.id)
+        .outerjoin(AssetMetadataFinancial, AssetMetadataFinancial.asset_id == Asset.id)
+        .where(
+            Asset.family_id == family_id,
+            Asset.nature == "financial",
+            Asset.status == "active",
+        )
+        .order_by(Asset.name)
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    holdings = []
+    total_value = 0.0
+    total_cost = 0.0
+
+    for asset, financial, metadata in rows:
+        # Get transaction summary for this asset
+        tx_stmt = (
+            select(
+                func.coalesce(func.sum(Transaction.quantity), 0).label("total_shares"),
+                func.coalesce(func.sum(Transaction.total), 0).label("total_invested"),
+                func.count(Transaction.id).label("tx_count"),
+            )
+            .where(
+                Transaction.asset_id == asset.id,
+                Transaction.type.in_(["buy", "sell"]),
+            )
+        )
+        tx_result = await db.execute(tx_stmt)
+        tx_row = tx_result.one()
+
+        # Calculate net shares (buy adds, sell subtracts)
+        buy_stmt = (
+            select(func.coalesce(func.sum(Transaction.quantity), 0))
+            .where(
+                Transaction.asset_id == asset.id,
+                Transaction.type == "buy",
+            )
+        )
+        sell_stmt = (
+            select(func.coalesce(func.sum(Transaction.quantity), 0))
+            .where(
+                Transaction.asset_id == asset.id,
+                Transaction.type == "sell",
+            )
+        )
+        buy_shares = (await db.execute(buy_stmt)).scalar() or 0
+        sell_shares = (await db.execute(sell_stmt)).scalar() or 0
+        net_shares = buy_shares - sell_shares
+
+        # Calculate cost basis
+        buy_total = (await db.execute(
+            select(func.coalesce(func.sum(Transaction.total), 0))
+            .where(
+                Transaction.asset_id == asset.id,
+                Transaction.type == "buy",
+            )
+        )).scalar() or 0
+
+        sell_total = (await db.execute(
+            select(func.coalesce(func.sum(Transaction.total), 0))
+            .where(
+                Transaction.asset_id == asset.id,
+                Transaction.type == "sell",
+            )
+        )).scalar() or 0
+
+        # Net cost = buy total - sell total (proportional)
+        if buy_shares > 0 and sell_shares > 0:
+            avg_buy_price = buy_total / buy_shares
+            cost_of_sold = avg_buy_price * sell_shares
+            remaining_cost = buy_total - cost_of_sold
+        else:
+            remaining_cost = buy_total
+
+        current_value = financial.current_value if financial else 0
+        gain = current_value - remaining_cost
+        gain_percent = (gain / remaining_cost * 100) if remaining_cost > 0 else 0
+
+        total_value += current_value
+        total_cost += remaining_cost
+
+        # Get recent transactions
+        recent_tx_stmt = (
+            select(Transaction)
+            .where(Transaction.asset_id == asset.id)
+            .order_by(Transaction.date.desc())
+            .limit(5)
+        )
+        recent_tx_result = await db.execute(recent_tx_stmt)
+        recent_txs = recent_tx_result.scalars().all()
+
+        holdings.append({
+            "asset_id": asset.id,
+            "name": asset.name,
+            "instrument_type": metadata.instrument_type if metadata else None,
+            "ticker": metadata.ticker if metadata else None,
+            "shares": net_shares,
+            "average_cost": (remaining_cost / net_shares) if net_shares > 0 else 0,
+            "current_value": current_value,
+            "current_price": metadata.current_price if metadata else None,
+            "cost": round(remaining_cost, 2),
+            "gain": round(gain, 2),
+            "gain_percent": round(gain_percent, 2),
+            "transaction_count": tx_row.tx_count,
+            "recent_transactions": [
+                {
+                    "id": tx.id,
+                    "type": tx.type,
+                    "quantity": tx.quantity,
+                    "price": tx.price,
+                    "total": tx.total,
+                    "date": tx.date.isoformat() if tx.date else None,
+                }
+                for tx in recent_txs
+            ],
+        })
+
+    total_gain = total_value - total_cost
+    total_gain_percent = (total_gain / total_cost * 100) if total_cost > 0 else 0
+
+    return {
+        "total_value": round(total_value, 2),
+        "total_cost": round(total_cost, 2),
+        "total_gain": round(total_gain, 2),
+        "total_gain_percent": round(total_gain_percent, 2),
+        "holdings_count": len(holdings),
+        "holdings": holdings,
+    }
 
 
 # ============================================================

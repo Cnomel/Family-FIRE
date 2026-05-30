@@ -287,6 +287,21 @@ async def get_cost_basis(
     return SuccessResponse(data=result)
 
 
+@router.get(
+    "/portfolio",
+    response_model=SuccessResponse[dict],
+    summary="投资组合",
+    description="获取聚合的投资组合视图，按资产分组展示持仓",
+)
+async def get_portfolio(
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
+):
+    result = await finance_service.get_portfolio(db, family_id, current_user.id)
+    return SuccessResponse(data=result)
+
+
 # ============================================================
 # Price Endpoints
 # ============================================================

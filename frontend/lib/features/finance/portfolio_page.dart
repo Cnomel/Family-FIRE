@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/api/api_client.dart';
 import '../../shared/formatters/currency.dart';
-import '../../shared/formatters/number.dart';
 import '../../shared/theme/colors.dart';
 
 class PortfolioPage extends ConsumerStatefulWidget {
@@ -15,7 +14,7 @@ class PortfolioPage extends ConsumerStatefulWidget {
 }
 
 class _PortfolioPageState extends ConsumerState<PortfolioPage> {
-  List<dynamic> _transactions = [];
+  Map<String, dynamic>? _portfolio;
   bool _isLoading = true;
 
   @override
@@ -28,13 +27,20 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
     setState(() => _isLoading = true);
     try {
       final client = ref.read(apiClientProvider);
-      final response = await client.get('/api/families/current/finance/transactions', queryParams: {'page': 1, 'page_size': 50});
-      setState(() {
-        _transactions = response.data['data']?['transactions'] ?? [];
-        _isLoading = false;
-      });
+      final response = await client.get('/api/families/current/finance/portfolio');
+      if (mounted) {
+        setState(() {
+          _portfolio = response.data['data'];
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _portfolio = null;
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -44,23 +50,9 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
       appBar: AppBar(title: const Text('投资组合')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadData,
-              child: ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  if (_transactions.isEmpty)
-                    const Card(
-                      child: Padding(
-                        padding: EdgeInsets.all(40),
-                        child: Center(child: Text('暂无交易记录')),
-                      ),
-                    )
-                  else
-                    ..._transactions.map((tx) => _buildTransactionCard(tx)),
-                ],
-              ),
-            ),
+          : _portfolio == null || (_portfolio!['holdings'] as List).isEmpty
+              ? _buildEmptyState()
+              : _buildPortfolio(),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddTransactionDialog(),
         child: const Icon(Icons.add),
@@ -68,36 +60,246 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
     );
   }
 
-  Widget _buildTransactionCard(Map<String, dynamic> tx) {
-    final typeLabels = {'buy': '买入', 'sell': '卖出', 'dividend': '分红', 'split': '拆股', 'transfer': '转账', 'fee': '手续费'};
-    final typeColors = {'buy': AppColors.loss, 'sell': AppColors.profit, 'dividend': AppColors.profit};
-
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: (typeColors[tx['type']] ?? Colors.grey).withValues(alpha: 0.1),
-          child: Icon(
-            tx['type'] == 'buy' ? Icons.arrow_downward : Icons.arrow_upward,
-            color: typeColors[tx['type']] ?? Colors.grey,
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.pie_chart_outline, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          const SizedBox(height: 16),
+          const Text('暂无投资记录', style: TextStyle(fontSize: 16)),
+          const SizedBox(height: 8),
+          const Text('添加金融资产后记录交易', style: TextStyle(color: Colors.grey)),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => _showAddTransactionDialog(),
+            icon: const Icon(Icons.add),
+            label: const Text('记录第一笔交易'),
           ),
-        ),
-        title: Text(typeLabels[tx['type']] ?? tx['type'] ?? ''),
-        subtitle: Text(tx['date'] != null ? tx['date'].toString().substring(0, 10) : ''),
-        trailing: Text(
-          formatCurrency(toDouble(tx['total'])),
-          style: const TextStyle(fontWeight: FontWeight.w600),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPortfolio() {
+    final totalValue = _portfolio!['total_value'] as double? ?? 0;
+    final totalCost = _portfolio!['total_cost'] as double? ?? 0;
+    final totalGain = _portfolio!['total_gain'] as double? ?? 0;
+    final totalGainPercent = _portfolio!['total_gain_percent'] as double? ?? 0;
+    final holdings = _portfolio!['holdings'] as List? ?? [];
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // 总览卡片
+          _buildSummaryCard(totalValue, totalCost, totalGain, totalGainPercent),
+          const SizedBox(height: 16),
+
+          // 持仓列表
+          const Text('持仓明细', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+          ...holdings.map((h) => _buildHoldingCard(h)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(double totalValue, double totalCost, double totalGain, double totalGainPercent) {
+    final isProfit = totalGain >= 0;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            const Text('总资产', style: TextStyle(fontSize: 14, color: Colors.grey)),
+            const SizedBox(height: 8),
+            Text(
+              formatCurrency(totalValue),
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildSummaryItem('总成本', formatCurrency(totalCost)),
+                _buildSummaryItem('总收益', formatCurrency(totalGain), color: isProfit ? AppColors.profit : AppColors.loss),
+                _buildSummaryItem('收益率', '${totalGainPercent.toStringAsFixed(2)}%', color: isProfit ? AppColors.profit : AppColors.loss),
+              ],
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildSummaryItem(String label, String value, {Color? color}) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHoldingCard(Map<String, dynamic> holding) {
+    final name = holding['name'] ?? '';
+    final ticker = holding['ticker'] as String?;
+    final instrumentType = holding['instrument_type'] as String?;
+    final shares = holding['shares'] as double? ?? 0;
+    final currentValue = holding['current_value'] as double? ?? 0;
+    final cost = holding['cost'] as double? ?? 0;
+    final gain = holding['gain'] as double? ?? 0;
+    final gainPercent = holding['gain_percent'] as double? ?? 0;
+    final recentTxs = holding['recent_transactions'] as List? ?? [];
+    final assetId = holding['asset_id'] ?? '';
+
+    final isProfit = gain >= 0;
+    final typeLabel = _getInstrumentTypeLabel(instrumentType);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          leading: CircleAvatar(
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            child: Text(
+              name.isNotEmpty ? name[0] : '?',
+              style: TextStyle(color: Theme.of(context).colorScheme.primary),
+            ),
+          ),
+          title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: Text(
+            [if (ticker != null) ticker, typeLabel].where((s) => s.isNotEmpty).join(' · '),
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          trailing: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                formatCurrency(currentValue),
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              Text(
+                '${isProfit ? '+' : ''}${formatCurrency(gain)} (${gainPercent.toStringAsFixed(2)}%)',
+                style: TextStyle(fontSize: 12, color: isProfit ? AppColors.profit : AppColors.loss),
+              ),
+            ],
+          ),
+          children: [
+            // 持仓详情
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  const Divider(),
+                  _buildDetailRow('持有份额', shares.toStringAsFixed(2)),
+                  _buildDetailRow('总成本', formatCurrency(cost)),
+                  _buildDetailRow('当前市值', formatCurrency(currentValue)),
+                  if (recentTxs.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('最近交易', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    ),
+                    const SizedBox(height: 8),
+                    ...recentTxs.map((tx) => _buildTransactionTile(tx)),
+                  ],
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () async {
+                      await context.push('/finance/price/$assetId');
+                      if (mounted) _loadData();
+                    },
+                    child: const Text('查看价格走势'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+          Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTransactionTile(Map<String, dynamic> tx) {
+    final type = tx['type'] ?? '';
+    final total = tx['total'] as double? ?? 0;
+    final dateStr = tx['date'] as String?;
+
+    final typeInfo = _getTypeInfo(type);
+    final date = dateStr != null ? DateTime.tryParse(dateStr) : null;
+    final dateLabel = date != null ? '${date.month}/${date.day}' : '';
+
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(typeInfo.$2, size: 20, color: typeInfo.$3),
+      title: Text('${typeInfo.$1}  $dateLabel', style: const TextStyle(fontSize: 13)),
+      trailing: Text(
+        '${type == 'buy' ? '-' : '+'}${formatCurrency(total.abs())}',
+        style: TextStyle(fontSize: 13, color: typeInfo.$3),
+      ),
+    );
+  }
+
+  String _getInstrumentTypeLabel(String? type) {
+    switch (type) {
+      case 'stock': return '股票';
+      case 'etf': return 'ETF';
+      case 'mutual_fund': return '基金';
+      case 'bond': return '债券';
+      case 'crypto': return '加密货币';
+      case 'reit': return 'REIT';
+      case 'option': return '期权';
+      case 'cd': return '定期';
+      case 'money_market': return '货币基金';
+      default: return '';
+    }
+  }
+
+  (String, IconData, Color) _getTypeInfo(String type) {
+    switch (type) {
+      case 'buy': return ('买入', Icons.add_circle, AppColors.loss);
+      case 'sell': return ('卖出', Icons.remove_circle, AppColors.profit);
+      case 'dividend': return ('分红', Icons.attach_money, AppColors.profit);
+      case 'split': return ('拆股', Icons.call_split, Colors.blue);
+      case 'transfer': return ('转账', Icons.swap_horiz, Colors.orange);
+      case 'fee': return ('手续费', Icons.money_off, Colors.grey);
+      default: return (type, Icons.help_outline, Colors.grey);
+    }
   }
 
   void _showAddTransactionDialog() {
     final totalController = TextEditingController();
     final quantityController = TextEditingController();
     final priceController = TextEditingController();
-    final assetIdController = TextEditingController();
-    String type = 'buy';
+    String txType = 'buy';
+    String? selectedAssetId;
 
     showDialog(
       context: context,
@@ -108,23 +310,50 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // 交易类型
                 SegmentedButton<String>(
                   segments: const [
-                    ButtonSegment(value: 'buy', label: Text('买入')),
-                    ButtonSegment(value: 'sell', label: Text('卖出')),
-                    ButtonSegment(value: 'dividend', label: Text('分红')),
+                    ButtonSegment(value: 'buy', label: Text('买入'), icon: Icon(Icons.add)),
+                    ButtonSegment(value: 'sell', label: Text('卖出'), icon: Icon(Icons.remove)),
+                    ButtonSegment(value: 'dividend', label: Text('分红'), icon: Icon(Icons.attach_money)),
                   ],
-                  selected: {type},
-                  onSelectionChanged: (v) => setDialogState(() => type = v.first),
+                  selected: {txType},
+                  onSelectionChanged: (v) => setDialogState(() => txType = v.first),
                 ),
                 const SizedBox(height: 16),
-                TextField(controller: assetIdController, decoration: const InputDecoration(labelText: '资产ID')),
+
+                // 资产ID
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: '资产ID',
+                    hintText: '输入金融资产的ID',
+                  ),
+                  onChanged: (v) => selectedAssetId = v.trim(),
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: totalController, decoration: const InputDecoration(labelText: '总金额', prefixText: '¥'), keyboardType: TextInputType.number),
+
+                // 总金额
+                TextField(
+                  controller: totalController,
+                  decoration: const InputDecoration(labelText: '总金额', prefixText: '¥'),
+                  keyboardType: TextInputType.number,
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: quantityController, decoration: const InputDecoration(labelText: '数量'), keyboardType: TextInputType.number),
+
+                // 数量
+                TextField(
+                  controller: quantityController,
+                  decoration: const InputDecoration(labelText: '数量（可选）'),
+                  keyboardType: TextInputType.number,
+                ),
                 const SizedBox(height: 12),
-                TextField(controller: priceController, decoration: const InputDecoration(labelText: '单价', prefixText: '¥'), keyboardType: TextInputType.number),
+
+                // 单价
+                TextField(
+                  controller: priceController,
+                  decoration: const InputDecoration(labelText: '单价（可选）', prefixText: '¥'),
+                  keyboardType: TextInputType.number,
+                ),
               ],
             ),
           ),
@@ -132,25 +361,35 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
             ElevatedButton(
               onPressed: () async {
+                if (selectedAssetId == null || selectedAssetId!.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请输入资产ID')));
+                  return;
+                }
+                final total = double.tryParse(totalController.text);
+                if (total == null || total <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请输入有效金额')));
+                  return;
+                }
+
                 try {
                   final client = ref.read(apiClientProvider);
                   await client.post('/api/families/current/finance/transactions', data: {
-                    'asset_id': assetIdController.text.trim(),
-                    'type': type,
-                    'total': double.tryParse(totalController.text) ?? 0,
-                    'quantity': double.tryParse(quantityController.text),
-                    'price': double.tryParse(priceController.text),
+                    'asset_id': selectedAssetId,
+                    'type': txType,
+                    'total': total,
+                    if (quantityController.text.isNotEmpty) 'quantity': double.parse(quantityController.text),
+                    if (priceController.text.isNotEmpty) 'price': double.parse(priceController.text),
                     'date': DateTime.now().toIso8601String(),
                   });
-                  if (ctx.mounted) Navigator.pop(ctx);
+                  if (mounted) Navigator.pop(ctx);
                   _loadData();
                 } catch (e) {
-                  if (ctx.mounted) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('添加失败')));
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('记录失败')));
                   }
                 }
               },
-              child: const Text('添加'),
+              child: const Text('记录'),
             ),
           ],
         ),
