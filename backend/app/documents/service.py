@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.common.exceptions import NotFoundError, PermissionDeniedError, ValidationError
 from app.common.logging import get_logger
 from app.config import get_settings
-from app.documents.models import AssetDocument
+from app.documents.models import AssetDocument, DocumentFolder
 from app.documents.schemas import UploadResponse
 from app.families.models import FamilyMember
 
@@ -63,6 +63,7 @@ async def upload_document(
     mime_type: str,
     doc_type: str,
     name: str = "",
+    folder_id: str | None = None,
     asset_id: str | None = None,
     expiry_date: datetime | None = None,
     description: str | None = None,
@@ -109,6 +110,7 @@ async def upload_document(
         id=doc_id,
         asset_id=asset_id,
         family_id=family_id,
+        folder_id=folder_id,
         uploaded_by=user_id,
         name=name or file_name,
         type=doc_type,
@@ -297,3 +299,171 @@ async def delete_document(
     await db.delete(doc)
     await db.flush()
     logger.info("document_deleted", doc_id=doc_id)
+
+
+# ============================================================
+# Folder Functions
+# ============================================================
+
+async def create_folder(
+    db: AsyncSession, family_id: str, user_id: str, name: str, parent_id: str | None = None
+) -> dict[str, Any]:
+    """Create a new folder."""
+    await _verify_family_member(db, family_id, user_id)
+
+    folder = DocumentFolder(
+        id=str(uuid.uuid4()),
+        family_id=family_id,
+        name=name,
+        parent_id=parent_id,
+        created_by=user_id,
+    )
+    db.add(folder)
+    await db.flush()
+
+    logger.info("folder_created", folder_id=folder.id, name=name)
+
+    return {
+        "id": folder.id,
+        "name": folder.name,
+        "parent_id": folder.parent_id,
+        "created_at": folder.created_at.isoformat(),
+    }
+
+
+async def list_folders(
+    db: AsyncSession, family_id: str, user_id: str
+) -> list[dict[str, Any]]:
+    """List all folders for a family."""
+    await _verify_family_member(db, family_id, user_id)
+
+    stmt = (
+        select(DocumentFolder)
+        .where(DocumentFolder.family_id == family_id)
+        .order_by(DocumentFolder.name)
+    )
+    result = await db.execute(stmt)
+    folders = result.scalars().all()
+
+    return [
+        {
+            "id": f.id,
+            "name": f.name,
+            "parent_id": f.parent_id,
+            "created_at": f.created_at.isoformat(),
+        }
+        for f in folders
+    ]
+
+
+async def delete_folder(
+    db: AsyncSession, folder_id: str, family_id: str, user_id: str
+) -> None:
+    """Delete a folder (documents inside will be moved to root)."""
+    await _verify_family_member(db, family_id, user_id)
+
+    stmt = select(DocumentFolder).where(
+        DocumentFolder.id == folder_id,
+        DocumentFolder.family_id == family_id,
+    )
+    result = await db.execute(stmt)
+    folder = result.scalar_one_or_none()
+
+    if not folder:
+        raise NotFoundError("文件夹", folder_id)
+
+    # Move documents in this folder to root
+    update_stmt = (
+        select(AssetDocument)
+        .where(AssetDocument.folder_id == folder_id)
+    )
+    docs_result = await db.execute(update_stmt)
+    docs = docs_result.scalars().all()
+    for doc in docs:
+        doc.folder_id = None
+
+    # Delete folder
+    await db.delete(folder)
+    await db.flush()
+    logger.info("folder_deleted", folder_id=folder_id)
+
+
+async def move_document(
+    db: AsyncSession, doc_id: str, family_id: str, user_id: str, target_folder_id: str | None
+) -> None:
+    """Move a document to a target folder."""
+    await _verify_family_member(db, family_id, user_id)
+
+    stmt = select(AssetDocument).where(
+        AssetDocument.id == doc_id,
+        AssetDocument.family_id == family_id,
+    )
+    result = await db.execute(stmt)
+    doc = result.scalar_one_or_none()
+
+    if not doc:
+        raise NotFoundError("文档", doc_id)
+
+    doc.folder_id = target_folder_id
+    await db.flush()
+    logger.info("document_moved", doc_id=doc_id, target_folder_id=target_folder_id)
+
+
+async def list_family_documents(
+    db: AsyncSession, family_id: str, user_id: str, folder_id: str | None = None
+) -> dict[str, Any]:
+    """List documents and folders for a family in a specific folder."""
+    await _verify_family_member(db, family_id, user_id)
+
+    # Get folders in current directory
+    folder_stmt = (
+        select(DocumentFolder)
+        .where(
+            DocumentFolder.family_id == family_id,
+            DocumentFolder.parent_id == folder_id,
+        )
+        .order_by(DocumentFolder.name)
+    )
+    folder_result = await db.execute(folder_stmt)
+    folders = folder_result.scalars().all()
+
+    # Get documents in current directory
+    doc_stmt = (
+        select(AssetDocument)
+        .where(
+            AssetDocument.family_id == family_id,
+            AssetDocument.folder_id == folder_id,
+        )
+        .order_by(AssetDocument.created_at.desc())
+    )
+    doc_result = await db.execute(doc_stmt)
+    docs = doc_result.scalars().all()
+
+    return {
+        "folders": [
+            {
+                "id": f.id,
+                "name": f.name,
+                "type": "folder",
+                "parent_id": f.parent_id,
+                "created_at": f.created_at.isoformat(),
+            }
+            for f in folders
+        ],
+        "documents": [
+            {
+                "id": d.id,
+                "name": d.name or d.file_name,
+                "type": "document",
+                "doc_type": d.type,
+                "file_name": d.file_name,
+                "mime_type": d.mime_type,
+                "file_size": d.file_size,
+                "asset_id": d.asset_id,
+                "folder_id": d.folder_id,
+                "description": d.description,
+                "created_at": d.created_at.isoformat(),
+            }
+            for d in docs
+        ],
+    }
