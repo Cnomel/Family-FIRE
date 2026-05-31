@@ -16,6 +16,7 @@ class AssetDocument(TimestampMixin, table=True):
     family_id: str = Field(max_length=36, index=True, description="所属家庭ID")
     uploaded_by: str = Field(max_length=36, description="上传者用户ID")
 
+    name: str = Field(max_length=200, description="文档名称", default="")
     type: str = Field(max_length=20, description="类型: receipt/warranty/policy/contract/manual/photo/appraisal")
     file_name: str = Field(max_length=255, description="文件名")
     file_path: str = Field(max_length=500, description="存储路径")

@@ -17,6 +17,7 @@ class UploadPage extends ConsumerStatefulWidget {
 }
 
 class _UploadPageState extends ConsumerState<UploadPage> {
+  final _nameController = TextEditingController();
   final _descController = TextEditingController();
   String? _selectedAssetId;
   String _docType = 'receipt';
@@ -25,6 +26,7 @@ class _UploadPageState extends ConsumerState<UploadPage> {
 
   @override
   void dispose() {
+    _nameController.dispose();
     _descController.dispose();
     super.dispose();
   }
@@ -66,6 +68,7 @@ class _UploadPageState extends ConsumerState<UploadPage> {
       final formData = FormData.fromMap({
         'file': await MultipartFile.fromFile(_selectedFile!.path, filename: fileName),
         'type': _docType,
+        'name': _nameController.text.trim().isNotEmpty ? _nameController.text.trim() : fileName,
         if (_selectedAssetId != null) 'asset_id': _selectedAssetId,
         if (_descController.text.isNotEmpty) 'description': _descController.text.trim(),
       });
@@ -135,6 +138,33 @@ class _UploadPageState extends ConsumerState<UploadPage> {
                       ),
                     ),
                   ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // 文档名称
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('文档名称', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      hintText: '如：2024年1月基金对账单',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '给文档起个名字，方便以后查找',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
                 ],
               ),
             ),
