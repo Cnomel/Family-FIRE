@@ -341,6 +341,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           _liquidity = liquidity;
           if (instrumentType != null) {
             _instrumentType = instrumentType;
+            print('DEBUG: Template clicked: $_instrumentType');
           }
         });
       },
@@ -502,6 +503,9 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
     }
 
     final isDepositOrCash = _instrumentType == 'cd' || _instrumentType == 'money_market';
+
+    // 调试：打印当前类型
+    print('DEBUG: _instrumentType=$_instrumentType, isDepositOrCash=$isDepositOrCash');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
