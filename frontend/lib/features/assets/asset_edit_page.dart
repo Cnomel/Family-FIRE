@@ -498,31 +498,46 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 金融工具类型
-        InputDecorator(
-          decoration: const InputDecoration(labelText: '金融工具类型'),
-          child: DropdownButton<String>(
-            value: _instrumentType,
-            isDense: true,
-            isExpanded: true,
-            underline: const SizedBox(),
-            items: const [
-              DropdownMenuItem(value: 'fund', child: Text('基金')),
-              DropdownMenuItem(value: 'etf', child: Text('ETF')),
-              DropdownMenuItem(value: 'stock', child: Text('股票')),
-              DropdownMenuItem(value: 'bond', child: Text('债券')),
-              DropdownMenuItem(value: 'money_market', child: Text('货币基金')),
-              DropdownMenuItem(value: 'cd', child: Text('定期存款')),
-              DropdownMenuItem(value: 'crypto', child: Text('加密货币')),
+        // 当前类型提示
+        Container(
+          padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                '当前类型: ${_getInstrumentTypeLabel(_instrumentType)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
             ],
-            onChanged: (v) {
-              if (v != null) {
-                setState(() => _instrumentType = v);
-              }
-            },
           ),
         ),
-        const SizedBox(height: 16),
+
+        // 金融工具类型选择
+        const Text('金融工具类型', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildTypeChip('基金', 'fund'),
+            _buildTypeChip('ETF', 'etf'),
+            _buildTypeChip('股票', 'stock'),
+            _buildTypeChip('债券', 'bond'),
+            _buildTypeChip('货币基金', 'money_market'),
+            _buildTypeChip('定期存款', 'cd'),
+            _buildTypeChip('加密货币', 'crypto'),
+          ],
+        ),
+        const SizedBox(height: 24),
 
         // 定期/货币基金只需说明
         if (isDepositOrCash)
@@ -548,22 +563,28 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
 
         // 股票/基金/ETF/债券/加密货币需要输入代码
         if (!isDepositOrCash) ...[
+          const Text('证券代码', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: TextFormField(
                   controller: _metadataControllers['ticker'],
                   decoration: const InputDecoration(
-                    labelText: '代码 *',
-                    hintText: '如 600519.SH, 110022',
+                    labelText: '代码',
+                    hintText: '如 600519, 110022',
+                    border: OutlineInputBorder(),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
               ElevatedButton.icon(
                 onPressed: () => _lookupInstrument(_instrumentType),
                 icon: const Icon(Icons.search, size: 18),
                 label: const Text('查询'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
               ),
             ],
           ),
@@ -602,11 +623,14 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
             const SizedBox(height: 16),
 
           // 份额
+          const Text('持有份额', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 8),
           TextFormField(
             controller: _metadataControllers['shares'],
             decoration: const InputDecoration(
-              labelText: '持有份额 *',
+              labelText: '份额',
               hintText: '如 1000',
+              border: OutlineInputBorder(),
             ),
             keyboardType: TextInputType.number,
           ),
@@ -618,6 +642,32 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
         ],
       ],
     );
+  }
+
+  Widget _buildTypeChip(String label, String value) {
+    final isSelected = _instrumentType == value;
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      onSelected: (selected) {
+        if (selected) {
+          setState(() => _instrumentType = value);
+        }
+      },
+    );
+  }
+
+  String _getInstrumentTypeLabel(String type) {
+    switch (type) {
+      case 'fund': return '基金';
+      case 'etf': return 'ETF';
+      case 'stock': return '股票';
+      case 'bond': return '债券';
+      case 'money_market': return '货币基金';
+      case 'cd': return '定期存款';
+      case 'crypto': return '加密货币';
+      default: return type;
+    }
   }
 
   Future<void> _lookupInstrument(String instrumentType) async {
