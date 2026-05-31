@@ -338,8 +338,11 @@ class _DocumentListPageState extends ConsumerState<DocumentListPage> {
     try {
       final client = ref.read(apiClientProvider);
       await client.put('/api/documents/$docId/move', data: FormData.fromMap({
-        if (targetFolderId != null) 'folder_id': targetFolderId,
+        'folder_id': targetFolderId ?? '',
       }));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('移动成功')));
+      }
       _loadData();
     } catch (e) {
       if (mounted) {
@@ -404,7 +407,62 @@ class _DocumentListPageState extends ConsumerState<DocumentListPage> {
     }
   }
 
-  void _viewDocument(String docId) {
-    // TODO: 查看文档详情
+  void _viewDocument(String docId) async {
+    try {
+      final client = ref.read(apiClientProvider);
+      final response = await client.get('/api/documents/$docId');
+      final data = response.data['data'];
+      final previewUrl = data['preview_url'] as String?;
+      final mimeType = data['mime_type'] as String? ?? '';
+      final name = data['name'] as String? ?? data['file_name'] as String? ?? '';
+
+      if (mounted && previewUrl != null && previewUrl.isNotEmpty) {
+        _showPreviewDialog(previewUrl, mimeType, name);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('获取文档信息失败')));
+      }
+    }
+  }
+
+  void _showPreviewDialog(String url, String mimeType, String name) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppBar(
+              title: Text(name, style: const TextStyle(fontSize: 14)),
+              automaticallyImplyLeading: false,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ],
+            ),
+            Flexible(
+              child: InteractiveViewer(
+                child: mimeType.contains('pdf')
+                    ? const Center(child: Text('PDF预览暂不支持'))
+                    : Image.network(
+                        url,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return const Center(child: CircularProgressIndicator());
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Center(child: Text('加载失败'));
+                        },
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
