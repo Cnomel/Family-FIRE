@@ -499,23 +499,28 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 金融工具类型
-        DropdownButtonFormField<String>(
-          value: _instrumentType,
+        InputDecorator(
           decoration: const InputDecoration(labelText: '金融工具类型'),
-          items: const [
-            DropdownMenuItem(value: 'fund', child: Text('基金')),
-            DropdownMenuItem(value: 'etf', child: Text('ETF')),
-            DropdownMenuItem(value: 'stock', child: Text('股票')),
-            DropdownMenuItem(value: 'bond', child: Text('债券')),
-            DropdownMenuItem(value: 'money_market', child: Text('货币基金')),
-            DropdownMenuItem(value: 'cd', child: Text('定期存款')),
-            DropdownMenuItem(value: 'crypto', child: Text('加密货币')),
-          ],
-          onChanged: (v) {
-            if (v != null) {
-              setState(() => _instrumentType = v);
-            }
-          },
+          child: DropdownButton<String>(
+            value: _instrumentType,
+            isDense: true,
+            isExpanded: true,
+            underline: const SizedBox(),
+            items: const [
+              DropdownMenuItem(value: 'fund', child: Text('基金')),
+              DropdownMenuItem(value: 'etf', child: Text('ETF')),
+              DropdownMenuItem(value: 'stock', child: Text('股票')),
+              DropdownMenuItem(value: 'bond', child: Text('债券')),
+              DropdownMenuItem(value: 'money_market', child: Text('货币基金')),
+              DropdownMenuItem(value: 'cd', child: Text('定期存款')),
+              DropdownMenuItem(value: 'crypto', child: Text('加密货币')),
+            ],
+            onChanged: (v) {
+              if (v != null) {
+                setState(() => _instrumentType = v);
+              }
+            },
+          ),
         ),
         const SizedBox(height: 16),
 
