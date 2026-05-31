@@ -284,7 +284,15 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           ('financial', '金融资产', '货币或证券形式，如股票、基金、存款'),
           ('intangible', '无形资产', '无实物但有价值的权利，如专利、商标'),
           ('service', '服务', '持续消费的服务，如保险、订阅、会员'),
-        ], (v) => setState(() => _nature = v)),
+        ], (v) {
+          setState(() {
+            _nature = v;
+            // 如果选择金融资产，确保instrumentType有值
+            if (v == 'financial' && !_isFinancialType(_instrumentType)) {
+              _instrumentType = 'fund'; // 默认基金
+            }
+          });
+        }),
         const SizedBox(height: 16),
 
         _buildDropdownWithHint('用途', _utility, [
@@ -668,6 +676,10 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
       case 'crypto': return '加密货币';
       default: return type;
     }
+  }
+
+  bool _isFinancialType(String type) {
+    return ['fund', 'etf', 'stock', 'bond', 'money_market', 'cd', 'crypto'].contains(type);
   }
 
   Future<void> _lookupInstrument(String instrumentType) async {
