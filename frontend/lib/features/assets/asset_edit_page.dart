@@ -591,8 +591,19 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            '输入代码点击查询，获取当前市场价',
+            '输入代码点击查询，自动填充名称和获取市场价',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.lightbulb_outline, size: 14, color: Colors.orange[600]),
+              const SizedBox(width: 4),
+              Text(
+                '名称会自动填写，无需手动输入',
+                style: TextStyle(fontSize: 12, color: Colors.orange[600], fontWeight: FontWeight.w500),
+              ),
+            ],
           ),
 
           // 查询结果
@@ -702,9 +713,9 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
       final name = data['name'] as String?;
 
       if (price != null) {
-        // 只自动填充名称（如果为空），不填充购买价格
+        // 每次查询都更新名称（跟随代码变化）
         setState(() {
-          if (name != null && name.isNotEmpty && _nameController.text.isEmpty) {
+          if (name != null && name.isNotEmpty) {
             _nameController.text = name;
           }
           // 将当前价格存到metadata控制器中
