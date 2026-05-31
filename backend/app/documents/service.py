@@ -238,6 +238,37 @@ async def list_asset_documents(
     ]
 
 
+async def list_family_documents(
+    db: AsyncSession, family_id: str, user_id: str
+) -> list[dict[str, Any]]:
+    """List all documents for a family."""
+    await _verify_family_member(db, family_id, user_id)
+
+    stmt = (
+        select(AssetDocument)
+        .where(AssetDocument.family_id == family_id)
+        .order_by(AssetDocument.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    docs = result.scalars().all()
+
+    return [
+        {
+            "id": d.id,
+            "name": d.name or d.file_name,
+            "type": d.type,
+            "file_name": d.file_name,
+            "mime_type": d.mime_type,
+            "file_size": d.file_size,
+            "asset_id": d.asset_id,
+            "description": d.description,
+            "expiry_date": d.expiry_date.isoformat() if d.expiry_date else None,
+            "created_at": d.created_at.isoformat(),
+        }
+        for d in docs
+    ]
+
+
 async def delete_document(
     db: AsyncSession, doc_id: str, family_id: str, user_id: str
 ) -> None:

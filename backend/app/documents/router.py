@@ -68,6 +68,21 @@ async def get_document(
 
 
 @router.get(
+    "/",
+    response_model=SuccessResponse[list],
+    summary="文档列表",
+    description="获取当前家庭的所有文档",
+)
+async def list_documents(
+    family_id: str = Depends(verify_family_member),
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+):
+    docs = await doc_service.list_family_documents(db, family_id, current_user.id)
+    return SuccessResponse(data=docs)
+
+
+@router.get(
     "/asset/{asset_id}",
     response_model=SuccessResponse[list],
     summary="资产文档",

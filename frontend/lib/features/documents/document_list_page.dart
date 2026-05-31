@@ -27,8 +27,8 @@ class _DocumentListPageState extends ConsumerState<DocumentListPage> {
     setState(() => _isLoading = true);
     try {
       final client = ref.read(apiClientProvider);
-      // 加载所有文档（通过资产关联）
-      final response = await client.get('/api/documents/all');
+      // 加载当前家庭的所有文档
+      final response = await client.get('/api/documents/');
       setState(() {
         _documents = response.data['data'] ?? [];
         _isLoading = false;
