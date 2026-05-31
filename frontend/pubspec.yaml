@@ -80,6 +80,7 @@ dependencies:
 
   # UUID generation
   uuid: ^4.5.1
+  open_file: ^3.5.11
 
 dev_dependencies:
   flutter_test:

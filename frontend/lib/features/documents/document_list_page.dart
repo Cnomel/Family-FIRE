@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_file/open_file.dart';
 
 import '../../core/api/api_client.dart';
 
@@ -196,10 +198,12 @@ class _DocumentListPageState extends ConsumerState<DocumentListPage> {
       ),
       trailing: PopupMenuButton(
         itemBuilder: (ctx) => [
+          const PopupMenuItem(value: 'download', child: Text('下载')),
           const PopupMenuItem(value: 'move', child: Text('移动')),
           const PopupMenuItem(value: 'delete', child: Text('删除')),
         ],
         onSelected: (value) {
+          if (value == 'download') _downloadDocument(doc['id'], doc['name'] ?? doc['file_name'] ?? 'document');
           if (value == 'move') _showMoveDialog(doc['id']);
           if (value == 'delete') _deleteDocument(doc['id']);
         },
@@ -422,6 +426,51 @@ class _DocumentListPageState extends ConsumerState<DocumentListPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('获取文档信息失败')));
+      }
+    }
+  }
+
+  Future<void> _downloadDocument(String docId, String fileName) async {
+    try {
+      // 显示下载进度
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('正在下载...')));
+      }
+
+      final client = ref.read(apiClientProvider);
+      final response = await client.get('/api/documents/$docId');
+      final data = response.data['data'];
+      final previewUrl = data['preview_url'] as String?;
+
+      if (previewUrl == null || previewUrl.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('无法获取下载链接')));
+        }
+        return;
+      }
+
+      // 获取下载目录
+      final directory = await getApplicationDocumentsDirectory();
+      final filePath = '${directory.path}/$fileName';
+
+      // 下载文件
+      final dio = Dio();
+      await dio.download(previewUrl, filePath);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('下载完成: $fileName'),
+            action: SnackBarAction(
+              label: '打开',
+              onPressed: () => OpenFile.open(filePath),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('下载失败')));
       }
     }
   }
