@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/api/api_client.dart';
 import '../../shared/formatters/currency.dart';
+import '../../shared/formatters/number.dart';
 import '../../shared/theme/colors.dart';
 
 class PortfolioPage extends ConsumerStatefulWidget {
@@ -82,10 +83,10 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
   }
 
   Widget _buildPortfolio() {
-    final totalValue = _portfolio!['total_value'] as double? ?? 0;
-    final totalCost = _portfolio!['total_cost'] as double? ?? 0;
-    final totalGain = _portfolio!['total_gain'] as double? ?? 0;
-    final totalGainPercent = _portfolio!['total_gain_percent'] as double? ?? 0;
+    final totalValue = toDouble(_portfolio!['total_value']);
+    final totalCost = toDouble(_portfolio!['total_cost']);
+    final totalGain = toDouble(_portfolio!['total_gain']);
+    final totalGainPercent = toDouble(_portfolio!['total_gain_percent']);
     final holdings = _portfolio!['holdings'] as List? ?? [];
 
     return RefreshIndicator(
@@ -155,11 +156,11 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
     final name = holding['name'] ?? '';
     final ticker = holding['ticker'] as String?;
     final instrumentType = holding['instrument_type'] as String?;
-    final shares = holding['shares'] as double? ?? 0;
-    final currentValue = holding['current_value'] as double? ?? 0;
-    final cost = holding['cost'] as double? ?? 0;
-    final gain = holding['gain'] as double? ?? 0;
-    final gainPercent = holding['gain_percent'] as double? ?? 0;
+    final shares = toDouble(holding['shares']);
+    final currentValue = toDouble(holding['current_value']);
+    final cost = toDouble(holding['cost']);
+    final gain = toDouble(holding['gain']);
+    final gainPercent = toDouble(holding['gain_percent']);
     final recentTxs = holding['recent_transactions'] as List? ?? [];
     final assetId = holding['asset_id'] ?? '';
 
@@ -248,7 +249,7 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
 
   Widget _buildTransactionTile(Map<String, dynamic> tx) {
     final type = tx['type'] ?? '';
-    final total = tx['total'] as double? ?? 0;
+    final total = toDouble(tx['total']);
     final dateStr = tx['date'] as String?;
 
     final typeInfo = _getTypeInfo(type);
