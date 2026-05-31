@@ -48,7 +48,7 @@ async def upload_document(
         expiry_date=exp_date,
         description=description,
     )
-    return SuccessResponse(data=result.__dict__, message="文档上传成功")
+    return SuccessResponse(data=result.model_dump(), message="文档上传成功")
 
 
 @router.get(
