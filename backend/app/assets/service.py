@@ -76,6 +76,118 @@ async def _check_duplicate(db: AsyncSession, family_id: str, name: str, nature: 
         raise DuplicateError("资产", "名称+类型", f"{name} ({nature})")
 
 
+async def _find_asset_by_ticker(
+    db: AsyncSession, family_id: str, ticker: str
+) -> Asset | None:
+    """Find an existing financial asset by ticker code."""
+    from app.assets.models import AssetMetadataFinancial
+
+    stmt = (
+        select(Asset)
+        .join(AssetMetadataFinancial, AssetMetadataFinancial.asset_id == Asset.id)
+        .where(
+            Asset.family_id == family_id,
+            Asset.nature == "financial",
+            Asset.status == "active",
+            AssetMetadataFinancial.ticker == ticker,
+        )
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def _add_purchase_to_existing_asset(
+    db: AsyncSession, existing_asset: Asset, user_id: str, data: CreateAssetRequest
+) -> AssetResponse:
+    """Add a new purchase transaction to an existing financial asset."""
+    from app.finance.models import Transaction
+
+    # Create a buy transaction
+    shares = data.metadata.get("shares", 0) if data.metadata else 0
+    transaction = Transaction(
+        id=str(uuid.uuid4()),
+        asset_id=existing_asset.id,
+        family_id=existing_asset.family_id,
+        created_by=user_id,
+        type="buy",
+        quantity=float(shares) if shares else None,
+        price=data.purchase_price / float(shares) if shares and data.purchase_price else None,
+        total=data.purchase_price,
+        date=data.purchase_date or utcnow(),
+    )
+    db.add(transaction)
+    await db.flush()
+
+    # Sync asset financial data
+    await _sync_asset_financial(db, existing_asset.id)
+
+    logger.info(
+        "purchase_added_to_existing_asset",
+        asset_id=existing_asset.id,
+        ticker=data.metadata.get("ticker"),
+        shares=shares,
+        total=data.purchase_price,
+    )
+
+    # Return the updated asset
+    financial_stmt = select(AssetFinancial).where(AssetFinancial.asset_id == existing_asset.id)
+    financial_result = await db.execute(financial_stmt)
+    financial = financial_result.scalar_one_or_none()
+
+    return _asset_to_response(existing_asset, financial)
+
+
+async def _sync_asset_financial(db: AsyncSession, asset_id: str) -> None:
+    """Sync asset financial data based on transactions."""
+    from app.finance.models import Transaction
+    from app.assets.models import AssetFinancial, AssetMetadataFinancial
+
+    # Calculate net shares and cost from transactions
+    buy_shares = (await db.execute(
+        select(func.coalesce(func.sum(Transaction.quantity), 0))
+        .where(Transaction.asset_id == asset_id, Transaction.type == "buy")
+    )).scalar() or 0
+
+    sell_shares = (await db.execute(
+        select(func.coalesce(func.sum(Transaction.quantity), 0))
+        .where(Transaction.asset_id == asset_id, Transaction.type == "sell")
+    )).scalar() or 0
+
+    buy_total = (await db.execute(
+        select(func.coalesce(func.sum(Transaction.total), 0))
+        .where(Transaction.asset_id == asset_id, Transaction.type == "buy")
+    )).scalar() or 0
+
+    net_shares = buy_shares - sell_shares
+
+    # Calculate remaining cost
+    if buy_shares > 0 and sell_shares > 0:
+        avg_buy_price = buy_total / buy_shares
+        cost_of_sold = avg_buy_price * sell_shares
+        remaining_cost = buy_total - cost_of_sold
+    else:
+        remaining_cost = buy_total
+
+    # Update AssetFinancial
+    financial_stmt = select(AssetFinancial).where(AssetFinancial.asset_id == asset_id)
+    financial_result = await db.execute(financial_stmt)
+    financial = financial_result.scalar_one_or_none()
+
+    if financial:
+        financial.current_value = remaining_cost
+        await db.flush()
+
+    # Update AssetMetadataFinancial
+    metadata_stmt = select(AssetMetadataFinancial).where(AssetMetadataFinancial.asset_id == asset_id)
+    metadata_result = await db.execute(metadata_stmt)
+    metadata = metadata_result.scalar_one_or_none()
+
+    if metadata:
+        metadata.shares = net_shares if net_shares > 0 else None
+        metadata.average_cost_basis = (remaining_cost / net_shares) if net_shares > 0 else None
+        await db.flush()
+
+
 def _asset_to_response(asset: Asset, financial: AssetFinancial | None = None) -> AssetResponse:
     """Convert Asset model to response."""
     tags = asset.tags if asset.tags else None
@@ -105,13 +217,28 @@ def _asset_to_response(asset: Asset, financial: AssetFinancial | None = None) ->
 async def create_asset(
     db: AsyncSession, family_id: str, user_id: str, data: CreateAssetRequest
 ) -> AssetResponse:
-    """Create a new asset.
+    """Create a new asset or add transaction to existing financial asset.
+
+    For financial assets with a ticker, if the ticker already exists,
+    add a transaction to the existing asset instead of creating a new one.
 
     Raises:
         PermissionDeniedError: If user is not a family member.
-        DuplicateError: If a similar asset exists.
+        DuplicateError: If a similar asset exists (non-financial).
     """
     await _verify_family_member(db, family_id, user_id)
+
+    # For financial assets with ticker, check if ticker already exists
+    if data.nature == "financial" and data.metadata and data.metadata.get("ticker"):
+        ticker = data.metadata["ticker"]
+        existing_asset = await _find_asset_by_ticker(db, family_id, ticker)
+        if existing_asset:
+            # Add transaction to existing asset
+            return await _add_purchase_to_existing_asset(
+                db, existing_asset, user_id, data
+            )
+
+    # For non-financial assets, check duplicate by name
     await _check_duplicate(db, family_id, data.name, data.nature)
 
     asset_id = str(uuid.uuid4())
