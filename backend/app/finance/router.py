@@ -322,18 +322,25 @@ async def lookup_instrument(
     # Determine provider based on instrument type and ticker format
     ticker = ticker.strip()
 
-    # Chinese fund codes: 6 digits, often starting with 1, 2, 3, 5, 6
-    is_chinese_fund = len(ticker) == 6 and ticker.isdigit()
+    # Chinese stock codes: 6 digits starting with 6 (Shanghai) or 0/3 (Shenzhen)
+    is_chinese_stock = len(ticker) == 6 and ticker.isdigit() and ticker[0] in ('6', '0', '3')
+    # Chinese fund codes: 6 digits starting with 1, 2, 5
+    is_chinese_fund = len(ticker) == 6 and ticker.isdigit() and ticker[0] in ('1', '2', '5')
 
     if instrument_type == "crypto":
         providers = ["coingecko"]
         currency = "USD"
     elif instrument_type == "stock":
-        # For Chinese stocks, try alphavantage first
-        providers = ["alphavantage"]
+        if is_chinese_stock:
+            providers = ["china_stock"]
+        else:
+            providers = ["alphavantage"]
+        currency = "CNY"
+    elif is_chinese_stock and instrument_type in ("etf", "fund"):
+        # 用户可能输入的是股票代码但选择了基金类型
+        providers = ["china_stock"]
         currency = "CNY"
     elif is_chinese_fund:
-        # For Chinese fund codes, use eastmoney API
         providers = ["china_fund"]
         currency = "CNY"
     else:  # fund/etf (international)
