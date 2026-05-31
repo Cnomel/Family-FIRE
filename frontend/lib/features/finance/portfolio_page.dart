@@ -54,10 +54,6 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
           : _portfolio == null || (_portfolio!['holdings'] as List).isEmpty
               ? _buildEmptyState()
               : _buildPortfolio(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddTransactionDialog(),
-        child: const Icon(Icons.add),
-      ),
     );
   }
 
@@ -70,13 +66,7 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
           const SizedBox(height: 16),
           const Text('暂无投资记录', style: TextStyle(fontSize: 16)),
           const SizedBox(height: 8),
-          const Text('添加金融资产后记录交易', style: TextStyle(color: Colors.grey)),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => _showAddTransactionDialog(),
-            icon: const Icon(Icons.add),
-            label: const Text('记录第一笔交易'),
-          ),
+          const Text('请先在资产页面添加金融资产', style: TextStyle(color: Colors.grey)),
         ],
       ),
     );
@@ -293,108 +283,5 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
       case 'fee': return ('手续费', Icons.money_off, Colors.grey);
       default: return (type, Icons.help_outline, Colors.grey);
     }
-  }
-
-  void _showAddTransactionDialog() {
-    final totalController = TextEditingController();
-    final quantityController = TextEditingController();
-    final priceController = TextEditingController();
-    String txType = 'buy';
-    String? selectedAssetId;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('记录交易'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 交易类型
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'buy', label: Text('买入'), icon: Icon(Icons.add)),
-                    ButtonSegment(value: 'sell', label: Text('卖出'), icon: Icon(Icons.remove)),
-                    ButtonSegment(value: 'dividend', label: Text('分红'), icon: Icon(Icons.attach_money)),
-                  ],
-                  selected: {txType},
-                  onSelectionChanged: (v) => setDialogState(() => txType = v.first),
-                ),
-                const SizedBox(height: 16),
-
-                // 资产ID
-                TextField(
-                  decoration: const InputDecoration(
-                    labelText: '资产ID',
-                    hintText: '输入金融资产的ID',
-                  ),
-                  onChanged: (v) => selectedAssetId = v.trim(),
-                ),
-                const SizedBox(height: 12),
-
-                // 总金额
-                TextField(
-                  controller: totalController,
-                  decoration: const InputDecoration(labelText: '总金额', prefixText: '¥'),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 12),
-
-                // 数量
-                TextField(
-                  controller: quantityController,
-                  decoration: const InputDecoration(labelText: '数量（可选）'),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 12),
-
-                // 单价
-                TextField(
-                  controller: priceController,
-                  decoration: const InputDecoration(labelText: '单价（可选）', prefixText: '¥'),
-                  keyboardType: TextInputType.number,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-            ElevatedButton(
-              onPressed: () async {
-                if (selectedAssetId == null || selectedAssetId!.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请输入资产ID')));
-                  return;
-                }
-                final total = double.tryParse(totalController.text);
-                if (total == null || total <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('请输入有效金额')));
-                  return;
-                }
-
-                try {
-                  final client = ref.read(apiClientProvider);
-                  await client.post('/api/families/current/finance/transactions', data: {
-                    'asset_id': selectedAssetId,
-                    'type': txType,
-                    'total': total,
-                    if (quantityController.text.isNotEmpty) 'quantity': double.parse(quantityController.text),
-                    if (priceController.text.isNotEmpty) 'price': double.parse(priceController.text),
-                    'date': DateTime.now().toIso8601String(),
-                  });
-                  if (mounted) Navigator.pop(ctx);
-                  _loadData();
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('记录失败')));
-                  }
-                }
-              },
-              child: const Text('记录'),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
