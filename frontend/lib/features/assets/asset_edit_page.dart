@@ -504,25 +504,25 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         // 金融工具类型选择
         const Text('选择类型', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+
+        // 类型选择网格
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 4,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: 2.2,
           children: [
             _buildTypeChip('基金', 'fund'),
             _buildTypeChip('ETF', 'etf'),
             _buildTypeChip('股票', 'stock'),
             _buildTypeChip('债券', 'bond'),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
             _buildTypeChip('货币基金', 'money_market'),
             _buildTypeChip('定期存款', 'cd'),
             _buildTypeChip('加密货币', 'crypto'),
@@ -557,32 +557,41 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
         if (showCodeInput) ...[
           const Text('证券代码', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _metadataControllers['ticker'],
-                  decoration: const InputDecoration(
-                    hintText: '输入基金/股票代码，如 110022',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+
+          // 代码输入 + 查询按钮
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _metadataControllers['ticker'],
+                    decoration: const InputDecoration(
+                      hintText: '如 110022',
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              SizedBox(
-                height: 48,
-                child: ElevatedButton.icon(
-                  onPressed: () => _lookupInstrument(_instrumentType),
-                  icon: const Icon(Icons.search, size: 18),
-                  label: const Text('查询'),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 80,
+                  child: ElevatedButton(
+                    onPressed: () => _lookupInstrument(_instrumentType),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('查询'),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 8),
           Text(
-            '点击查询可获取当前市场价和名称',
+            '输入代码点击查询，获取当前市场价',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
 
@@ -615,7 +624,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           TextField(
             controller: _metadataControllers['shares'],
             decoration: const InputDecoration(
-              hintText: '输入持有的份额/股数',
+              hintText: '如 1000',
               border: OutlineInputBorder(),
               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             ),
@@ -634,13 +643,18 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
   Widget _buildTypeChip(String label, String value) {
     final isSelected = _instrumentType == value;
     return ChoiceChip(
-      label: Text(label),
+      label: Text(label, style: TextStyle(fontSize: 12)),
       selected: isSelected,
       onSelected: (selected) {
         if (selected) {
           setState(() => _instrumentType = value);
         }
       },
+      selectedColor: Theme.of(context).colorScheme.primaryContainer,
+      labelStyle: TextStyle(
+        color: isSelected ? Theme.of(context).colorScheme.primary : null,
+        fontWeight: isSelected ? FontWeight.w600 : null,
+      ),
     );
   }
 
