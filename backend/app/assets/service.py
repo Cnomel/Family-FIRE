@@ -96,6 +96,20 @@ async def _find_asset_by_ticker(
     return result.scalar_one_or_none()
 
 
+async def _find_asset_by_name(
+    db: AsyncSession, family_id: str, name: str
+) -> Asset | None:
+    """Find an existing financial asset by name."""
+    stmt = select(Asset).where(
+        Asset.family_id == family_id,
+        Asset.name == name,
+        Asset.nature == "financial",
+        Asset.status == "active",
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
 async def _add_purchase_to_existing_asset(
     db: AsyncSession, existing_asset: Asset, user_id: str, data: CreateAssetRequest
 ) -> AssetResponse:
@@ -219,27 +233,40 @@ async def create_asset(
 ) -> AssetResponse:
     """Create a new asset or add transaction to existing financial asset.
 
-    For financial assets with a ticker, if the ticker already exists,
-    add a transaction to the existing asset instead of creating a new one.
+    For financial assets, check if similar asset already exists:
+    1. First check by ticker (if provided)
+    2. Then check by name + nature
+
+    If found, add a transaction to the existing asset instead of creating a new one.
 
     Raises:
         PermissionDeniedError: If user is not a family member.
-        DuplicateError: If a similar asset exists (non-financial).
     """
     await _verify_family_member(db, family_id, user_id)
 
-    # For financial assets with ticker, check if ticker already exists
-    if data.nature == "financial" and data.metadata and data.metadata.get("ticker"):
-        ticker = data.metadata["ticker"]
-        existing_asset = await _find_asset_by_ticker(db, family_id, ticker)
+    # For financial assets, try to find existing asset to merge
+    if data.nature == "financial":
+        existing_asset = None
+        ticker = data.metadata.get("ticker") if data.metadata else None
+
+        # Try to find by ticker first
+        if ticker:
+            existing_asset = await _find_asset_by_ticker(db, family_id, ticker)
+
+        # If not found by ticker, try by name
+        if not existing_asset:
+            existing_asset = await _find_asset_by_name(db, family_id, data.name)
+
         if existing_asset:
             # Add transaction to existing asset
             return await _add_purchase_to_existing_asset(
                 db, existing_asset, user_id, data
             )
 
-    # For non-financial assets, check duplicate by name
-    await _check_duplicate(db, family_id, data.name, data.nature)
+    # For non-financial assets or no existing asset found, create new
+    # Check duplicate by name for non-financial assets
+    if data.nature != "financial":
+        await _check_duplicate(db, family_id, data.name, data.nature)
 
     asset_id = str(uuid.uuid4())
 
