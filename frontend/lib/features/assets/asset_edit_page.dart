@@ -341,7 +341,6 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           _liquidity = liquidity;
           if (instrumentType != null) {
             _instrumentType = instrumentType;
-            print('DEBUG: Template clicked: $_instrumentType');
           }
         });
       },
@@ -504,9 +503,6 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
 
     final isDepositOrCash = _instrumentType == 'cd' || _instrumentType == 'money_market';
 
-    // 调试：打印当前类型
-    print('DEBUG: _instrumentType=$_instrumentType, isDepositOrCash=$isDepositOrCash');
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -551,8 +547,8 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
         ),
         const SizedBox(height: 24),
 
-        // 定期/货币基金只需说明
-        if (isDepositOrCash)
+        // 定期/货币基金：只需说明
+        if (isDepositOrCash) ...[
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -565,15 +561,16 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    '定期存款和货币基金只需在"财务信息"步骤填写总金额，无需填写代码和份额',
+                    '定期存款和货币基金只需在"财务信息"步骤填写总金额',
                     style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 ),
               ],
             ),
           ),
+        ],
 
-        // 股票/基金/ETF/债券/加密货币需要输入代码
+        // 股票/基金/ETF/债券/加密货币：显示代码和份额输入
         if (!isDepositOrCash) ...[
           const Text('证券代码', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
           const SizedBox(height: 8),
@@ -583,8 +580,8 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
                 child: TextFormField(
                   controller: _metadataControllers['ticker'],
                   decoration: const InputDecoration(
-                    labelText: '代码',
-                    hintText: '如 600519, 110022',
+                    labelText: '输入代码',
+                    hintText: '如 110022, 600519',
                     border: OutlineInputBorder(),
                   ),
                 ),
@@ -607,10 +604,11 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           ),
           const SizedBox(height: 16),
 
-          // 当前市场价（查询后显示，只读）
+          // 当前市场价（查询后显示）
           if (_metadataControllers['current_price']?.text.isNotEmpty == true)
             Container(
               padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.primaryContainer.withAlpha(64),
                 borderRadius: BorderRadius.circular(8),
@@ -631,8 +629,6 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
                 ],
               ),
             ),
-          if (_metadataControllers['current_price']?.text.isNotEmpty == true)
-            const SizedBox(height: 16),
 
           // 份额
           const Text('持有份额', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
@@ -640,7 +636,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           TextFormField(
             controller: _metadataControllers['shares'],
             decoration: const InputDecoration(
-              labelText: '份额',
+              labelText: '输入份额',
               hintText: '如 1000',
               border: OutlineInputBorder(),
             ),
@@ -648,7 +644,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            '份额 × 单价 = 总金额（自动填入财务信息）',
+            '份额 × 买入单价 = 总金额（自动计算）',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
         ],
