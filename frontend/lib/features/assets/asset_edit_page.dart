@@ -494,44 +494,20 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
     if (!_metadataControllers.containsKey('ticker')) {
       _metadataControllers['ticker'] = TextEditingController();
     }
-    if (!_metadataControllers.containsKey('exchange')) {
-      _metadataControllers['exchange'] = TextEditingController();
-    }
     if (!_metadataControllers.containsKey('shares')) {
       _metadataControllers['shares'] = TextEditingController();
     }
 
-    final isDepositOrCash = _instrumentType == 'cd' || _instrumentType == 'money_market';
+    final isDeposit = _instrumentType == 'cd';
+    final isMoneyMarket = _instrumentType == 'money_market';
+    final showCodeInput = !isDeposit && !isMoneyMarket;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 当前类型提示
-        Container(
-          padding: const EdgeInsets.all(12),
-          margin: const EdgeInsets.only(bottom: 16),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
-              Text(
-                '当前类型: ${_getInstrumentTypeLabel(_instrumentType)}',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
-        ),
-
         // 金融工具类型选择
-        const Text('金融工具类型', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-        const SizedBox(height: 8),
+        const Text('选择类型', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 12),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -540,6 +516,13 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
             _buildTypeChip('ETF', 'etf'),
             _buildTypeChip('股票', 'stock'),
             _buildTypeChip('债券', 'bond'),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
             _buildTypeChip('货币基金', 'money_market'),
             _buildTypeChip('定期存款', 'cd'),
             _buildTypeChip('加密货币', 'crypto'),
@@ -547,104 +530,100 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
         ),
         const SizedBox(height: 24),
 
-        // 定期/货币基金：只需说明
-        if (isDepositOrCash) ...[
+        // 存款类：显示提示
+        if (isDeposit || isMoneyMarket)
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(128),
+              color: Colors.blue.withAlpha(20),
               borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.withAlpha(64)),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                const Icon(Icons.info_outline, size: 20, color: Colors.blue),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    '定期存款和货币基金只需在"财务信息"步骤填写总金额',
-                    style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    '${_getInstrumentTypeLabel(_instrumentType)}只需在"财务信息"步骤填写总金额即可',
+                    style: const TextStyle(fontSize: 13),
                   ),
                 ),
               ],
             ),
           ),
-        ],
 
-        // 股票/基金/ETF/债券/加密货币：显示代码和份额输入
-        if (!isDepositOrCash) ...[
-          const Text('证券代码', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+        // 非存款类：显示代码和份额输入
+        if (showCodeInput) ...[
+          const Text('证券代码', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
-                child: TextFormField(
+                child: TextField(
                   controller: _metadataControllers['ticker'],
                   decoration: const InputDecoration(
-                    labelText: '输入代码',
-                    hintText: '如 110022, 600519',
+                    hintText: '输入基金/股票代码，如 110022',
                     border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
-              ElevatedButton.icon(
-                onPressed: () => _lookupInstrument(_instrumentType),
-                icon: const Icon(Icons.search, size: 18),
-                label: const Text('查询'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: () => _lookupInstrument(_instrumentType),
+                  icon: const Icon(Icons.search, size: 18),
+                  label: const Text('查询'),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            '输入代码点击查询，获取当前市场价和名称',
+            '点击查询可获取当前市场价和名称',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
-          const SizedBox(height: 16),
 
-          // 当前市场价（查询后显示）
-          if (_metadataControllers['current_price']?.text.isNotEmpty == true)
+          // 查询结果
+          if (_metadataControllers['current_price']?.text.isNotEmpty == true) ...[
+            const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primaryContainer.withAlpha(64),
+                color: Colors.green.withAlpha(20),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Theme.of(context).colorScheme.primary.withAlpha(64)),
+                border: Border.all(color: Colors.green.withAlpha(64)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.trending_up, size: 20, color: Theme.of(context).colorScheme.primary),
+                  const Icon(Icons.check_circle_outline, size: 20, color: Colors.green),
                   const SizedBox(width: 8),
                   Text(
                     '当前市场价: ¥${_metadataControllers['current_price']!.text}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.green),
                   ),
                 ],
               ),
             ),
+          ],
 
-          // 份额
-          const Text('持有份额', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          const SizedBox(height: 24),
+          const Text('持有份额', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),
-          TextFormField(
+          TextField(
             controller: _metadataControllers['shares'],
             decoration: const InputDecoration(
-              labelText: '输入份额',
-              hintText: '如 1000',
+              hintText: '输入持有的份额/股数',
               border: OutlineInputBorder(),
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             ),
             keyboardType: TextInputType.number,
           ),
           const SizedBox(height: 8),
           Text(
-            '份额 × 买入单价 = 总金额（自动计算）',
+            '份额 × 买入单价 = 总金额',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
         ],

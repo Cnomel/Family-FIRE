@@ -6,7 +6,7 @@ final localeProvider = StateNotifierProvider<LocaleNotifier, Locale?>((ref) {
 });
 
 class LocaleNotifier extends StateNotifier<Locale?> {
-  LocaleNotifier() : super(null); // null = system default
+  LocaleNotifier() : super(const Locale('zh')); // 默认中文
 
   void setLocale(Locale locale) {
     state = locale;
