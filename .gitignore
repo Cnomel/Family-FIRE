@@ -68,3 +68,4 @@ minio_data/
 
 # Node (if any)
 node_modules/
+backend/family_fire.db
