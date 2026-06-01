@@ -18,6 +18,7 @@ class _ConsumablePageState extends ConsumerState<ConsumablePage> {
   bool _isSaving = false;
 
   final _quantityController = TextEditingController();
+  final _maxQuantityController = TextEditingController();
   final _unitController = TextEditingController();
   final _reorderThresholdController = TextEditingController();
 
@@ -30,6 +31,7 @@ class _ConsumablePageState extends ConsumerState<ConsumablePage> {
   @override
   void dispose() {
     _quantityController.dispose();
+    _maxQuantityController.dispose();
     _unitController.dispose();
     _reorderThresholdController.dispose();
     super.dispose();
@@ -41,8 +43,10 @@ class _ConsumablePageState extends ConsumerState<ConsumablePage> {
       final response = await client.get('/api/families/current/assets/${widget.assetId}/lifecycle');
       final data = response.data['data'];
 
-      final consumption = data['consumption_config'] ?? {};
+      // 后端返回 config 字段（包含 consumption_config 的内容）
+      final consumption = data['config'] ?? {};
       _quantityController.text = (consumption['current_quantity'] ?? 0).toString();
+      _maxQuantityController.text = (consumption['initial_quantity'] ?? 0).toString();
       _unitController.text = consumption['unit'] ?? '';
       _reorderThresholdController.text = (consumption['reorder_threshold'] ?? 0).toString();
 
@@ -65,6 +69,7 @@ class _ConsumablePageState extends ConsumerState<ConsumablePage> {
           'trajectory': 'consumable',
           'consumption_config': {
             'current_quantity': double.tryParse(_quantityController.text) ?? 0,
+            'initial_quantity': double.tryParse(_maxQuantityController.text) ?? 0,
             'unit': _unitController.text.trim(),
             'reorder_threshold': double.tryParse(_reorderThresholdController.text) ?? 0,
           },
@@ -96,11 +101,11 @@ class _ConsumablePageState extends ConsumerState<ConsumablePage> {
       );
     }
 
-    final consumption = _lifecycle?['consumption_config'] ?? {};
-    final initialQty = toDouble(consumption['initial_quantity']);
+    final consumption = _lifecycle?['config'] ?? {};
+    final maxQty = toDouble(consumption['initial_quantity']);
     final currentQty = toDouble(consumption['current_quantity']);
     final unit = consumption['unit'] ?? '';
-    final progress = initialQty > 0 ? currentQty / initialQty : 0.0;
+    final progress = maxQty > 0 ? currentQty / maxQty : 0.0;
 
     return Scaffold(
       appBar: AppBar(title: const Text('消耗品追踪')),
@@ -114,7 +119,7 @@ class _ConsumablePageState extends ConsumerState<ConsumablePage> {
               child: Column(
                 children: [
                   Text(
-                    '${currentQty.toStringAsFixed(0)} / ${initialQty.toStringAsFixed(0)} $unit',
+                    '${currentQty.toStringAsFixed(0)} / ${maxQty.toStringAsFixed(0)} $unit',
                     style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
@@ -126,7 +131,7 @@ class _ConsumablePageState extends ConsumerState<ConsumablePage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '已使用 ${((1 - progress) * 100).toStringAsFixed(0)}%',
+                    '已使用 ${(progress * 100).toStringAsFixed(0)}%',
                     style: const TextStyle(color: Colors.grey),
                   ),
                 ],
@@ -145,19 +150,37 @@ class _ConsumablePageState extends ConsumerState<ConsumablePage> {
                   const Text('更新数量', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 16),
                   TextFormField(
+                    controller: _maxQuantityController,
+                    decoration: const InputDecoration(
+                      labelText: '最大存储量',
+                      hintText: '例如: 100',
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
                     controller: _quantityController,
-                    decoration: const InputDecoration(labelText: '当前数量'),
+                    decoration: const InputDecoration(
+                      labelText: '当前数量',
+                      hintText: '例如: 50',
+                    ),
                     keyboardType: TextInputType.number,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _unitController,
-                    decoration: const InputDecoration(labelText: '单位 (如: 个, 瓶, 卷)'),
+                    decoration: const InputDecoration(
+                      labelText: '单位',
+                      hintText: '个, 瓶, 卷, 包',
+                    ),
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _reorderThresholdController,
-                    decoration: const InputDecoration(labelText: '补货阈值'),
+                    decoration: const InputDecoration(
+                      labelText: '补货阈值',
+                      hintText: '低于此数量时提醒',
+                    ),
                     keyboardType: TextInputType.number,
                   ),
                   const SizedBox(height: 24),
