@@ -315,7 +315,7 @@ class _IncomeExpensePageState extends ConsumerState<IncomeExpensePage> {
                   const SizedBox(height: 16),
                   if (categories.isNotEmpty)
                     DropdownButtonFormField<String>(
-                      value: categoryId,
+                      initialValue: categoryId,
                       decoration: const InputDecoration(labelText: '分类'),
                       items: categories.map<DropdownMenuItem<String>>((cat) {
                         return DropdownMenuItem(

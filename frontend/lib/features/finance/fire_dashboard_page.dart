@@ -258,7 +258,7 @@ class _FireDashboardPageState extends ConsumerState<FireDashboardPage> {
   }
 
   Widget _buildAllocationChart() {
-    final allocation = _allocation as Map<String, dynamic>? ?? {};
+    final allocation = _allocation ?? {};
     if (allocation.isEmpty) return const SizedBox.shrink();
 
     final colors = {

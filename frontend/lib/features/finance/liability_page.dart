@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/api/api_client.dart';
-import '../../core/api/api_exception.dart';
 import '../../shared/formatters/currency.dart';
 import '../../shared/formatters/number.dart';
 
@@ -168,7 +166,7 @@ class _LiabilityPageState extends ConsumerState<LiabilityPage> {
                 TextField(controller: nameController, decoration: const InputDecoration(labelText: '名称')),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: type,
+                  initialValue: type,
                   decoration: const InputDecoration(labelText: '类型'),
                   items: const [
                     DropdownMenuItem(value: 'mortgage', child: Text('房贷')),
@@ -202,8 +200,10 @@ class _LiabilityPageState extends ConsumerState<LiabilityPage> {
                     'interest_rate': double.tryParse(rateController.text),
                     'monthly_payment': double.tryParse(paymentController.text),
                   });
-                  if (mounted) Navigator.pop(ctx);
-                  _loadData();
+                  if (mounted) {
+                    Navigator.pop(ctx);
+                    _loadData();
+                  }
                 } catch (e) {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('添加失败')));
@@ -250,8 +250,10 @@ class _LiabilityPageState extends ConsumerState<LiabilityPage> {
                   'interest_rate': double.tryParse(rateController.text),
                   'monthly_payment': double.tryParse(paymentController.text),
                 });
-                if (mounted) Navigator.pop(ctx);
-                _loadData();
+                if (mounted) {
+                  Navigator.pop(ctx);
+                  _loadData();
+                }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('更新失败')));

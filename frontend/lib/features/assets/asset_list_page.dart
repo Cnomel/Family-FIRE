@@ -7,7 +7,6 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_exception.dart';
 import '../../shared/widgets/asset_card.dart';
 import '../../shared/widgets/skeleton.dart';
-import '../../shared/theme/colors.dart';
 
 class AssetListPage extends ConsumerStatefulWidget {
   const AssetListPage({super.key});
@@ -38,13 +37,11 @@ class _AssetListPageState extends ConsumerState<AssetListPage> {
   String? _ownershipFilter;
   String? _liquidityFilter;
   String? _searchQuery;
-  List<dynamic> _allTags = [];
 
   @override
   void initState() {
     super.initState();
     _loadAssets();
-    _loadTags();
     _scrollController.addListener(_onScroll);
   }
 
@@ -53,16 +50,6 @@ class _AssetListPageState extends ConsumerState<AssetListPage> {
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadTags() async {
-    try {
-      final client = ref.read(apiClientProvider);
-      final response = await client.get('/api/families/current/assets/tags');
-      setState(() {
-        _allTags = response.data['data'] ?? [];
-      });
-    } catch (_) {}
   }
 
   Future<void> _loadAssets({bool refresh = false}) async {
@@ -347,7 +334,7 @@ class _AssetListPageState extends ConsumerState<AssetListPage> {
           child: _isLoading
               ? ListView.builder(
                   itemCount: 5,
-                  itemBuilder: (_, __) => const AssetCardSkeleton(),
+                  itemBuilder: (_, _) => const AssetCardSkeleton(),
                 )
               : _error != null
                   ? Center(

@@ -7,7 +7,6 @@ import '../../core/api/api_client.dart';
 import '../../core/api/api_exception.dart';
 import '../../shared/widgets/amount_text.dart';
 import '../../shared/widgets/percent_badge.dart';
-import '../../shared/widgets/skeleton.dart';
 import '../../shared/widgets/category_icon.dart';
 import '../../shared/theme/colors.dart';
 import '../../shared/formatters/currency.dart';
@@ -689,7 +688,7 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
-                  value: relType,
+                  initialValue: relType,
                   decoration: const InputDecoration(labelText: '关系类型'),
                   items: const [
                     DropdownMenuItem(value: 'component_of', child: Text('组成部分')),

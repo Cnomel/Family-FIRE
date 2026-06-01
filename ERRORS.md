@@ -95,6 +95,37 @@
 
 ---
 
+## 代码编辑经验
+
+### EDIT-001: 大范围替换导致误删代码
+- **日期**: 2026-06-01
+- **模块**: asset_list_page.dart
+- **错误**: 编辑 `_allTags` 字段时，使用了过大的 `oldString` 匹配范围，导致误删了 `_loadAssets`、`_onScroll`、`_bulkAction` 等 10+ 个方法
+- **根因**: `oldString` 匹配了从 `_allTags` 到下一个方法之间的所有内容，包括不相关的方法
+- **修复**: `git checkout` 恢复文件后，使用更精确的 `oldString`（只匹配要删除的行）重新编辑
+- **预防**: 
+  1. 编辑前先用 `git diff` 确认变更范围
+  2. `oldString` 只包含要修改的最小上下文
+  3. 编辑后立即验证关键方法是否还在（grep 检查）
+
+### EDIT-002: Dart 3 null-aware 元素语法限制
+- **日期**: 2026-06-01
+- **模块**: auth_state.dart, asset_list_page.dart
+- **错误**: 使用 `?'key': value` 语法替换 `if (x != null) 'key': x`，但 map key 是字符串字面量不可能为 null，导致 `invalid_null_aware_operator` 警告
+- **根因**: 误解了 Dart 3 null-aware 元素的适用场景——它只适用于 value 可能为 null 的情况，不适用于固定 key 的 map entry
+- **修复**: 恢复为 `if (x != null) 'key': x` 语法
+- **预防**: null-aware 元素 `?` 只用于 list element 或 map entry 的 value 部分
+
+### EDIT-003: Flutter 3.33+ DropdownButtonFormField.value 废弃
+- **日期**: 2026-06-01
+- **模块**: 多个表单页面
+- **错误**: `DropdownButtonFormField(value: ...)` 在 Flutter 3.33.0+ 废弃
+- **根因**: Flutter 3.33.0 统一了 FormField API，`value` 改为 `initialValue`
+- **修复**: 替换为 `DropdownButtonFormField(initialValue: ...)`
+- **预防**: 运行 `flutter analyze` 检查废弃警告
+
+---
+
 ## 架构经验
 
 ### ARCH-001: 测试先行

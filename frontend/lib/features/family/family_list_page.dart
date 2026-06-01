@@ -136,8 +136,10 @@ class _FamilyListPageState extends ConsumerState<FamilyListPage> {
                   'name': nameController.text.trim(),
                   if (descController.text.isNotEmpty) 'description': descController.text.trim(),
                 });
-                if (mounted) Navigator.pop(ctx);
-                _loadData();
+                if (mounted) {
+                  Navigator.pop(ctx);
+                  _loadData();
+                }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('创建失败')));
@@ -171,8 +173,10 @@ class _FamilyListPageState extends ConsumerState<FamilyListPage> {
                 await client.post('/api/families/join', data: {
                   'invite_code': codeController.text.trim(),
                 });
-                if (mounted) Navigator.pop(ctx);
-                _loadData();
+                if (mounted) {
+                  Navigator.pop(ctx);
+                  _loadData();
+                }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('加入失败')));

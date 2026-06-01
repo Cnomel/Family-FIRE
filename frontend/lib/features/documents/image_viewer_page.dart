@@ -68,8 +68,8 @@ class _ImageViewerPageState extends ConsumerState<ImageViewerPage> {
                       imageProvider: CachedNetworkImageProvider(_imageUrl!),
                       minScale: PhotoViewComputedScale.contained,
                       maxScale: PhotoViewComputedScale.covered * 3,
-                      loadingBuilder: (_, __) => const Center(child: CircularProgressIndicator()),
-                      errorBuilder: (_, __, ___) => const Center(
+                      loadingBuilder: (_, _) => const Center(child: CircularProgressIndicator()),
+                      errorBuilder: (_, _, _) => const Center(
                         child: Icon(Icons.broken_image, color: Colors.white54, size: 64),
                       ),
                     )

@@ -289,8 +289,10 @@ class _DocumentListPageState extends ConsumerState<DocumentListPage> {
                   'name': name,
                   if (_currentFolderId != null) 'parent_id': _currentFolderId,
                 }));
-                if (mounted) Navigator.pop(ctx);
-                _loadData();
+                if (mounted) {
+                  Navigator.pop(ctx);
+                  _loadData();
+                }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('创建失败')));
@@ -322,6 +324,7 @@ class _DocumentListPageState extends ConsumerState<DocumentListPage> {
                   await _moveDocument(docId, null);
                   if (mounted) Navigator.pop(ctx);
                 },
+
               ),
               ..._folders.map((folder) => ListTile(
                 leading: const Icon(Icons.folder, color: Colors.amber),
@@ -330,6 +333,7 @@ class _DocumentListPageState extends ConsumerState<DocumentListPage> {
                   await _moveDocument(docId, folder['id']);
                   if (mounted) Navigator.pop(ctx);
                 },
+
               )),
             ],
           ),

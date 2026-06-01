@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/api/api_client.dart';
-import '../../shared/formatters/date.dart';
 
 class FamilyDetailPage extends ConsumerStatefulWidget {
   final String familyId;

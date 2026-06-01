@@ -72,61 +72,61 @@ final routerProvider = Provider<GoRouter>((ref) {
     },
     routes: [
       // Auth routes
-      GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
-      GoRoute(path: '/register', builder: (_, __) => const RegisterPage()),
-      GoRoute(path: '/forgot-password', builder: (_, __) => const ForgotPasswordPage()),
+      GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
+      GoRoute(path: '/register', builder: (_, _) => const RegisterPage()),
+      GoRoute(path: '/forgot-password', builder: (_, _) => const ForgotPasswordPage()),
 
       // Main shell with bottom navigation
       ShellRoute(
-        builder: (_, __, child) => HomeShell(child: child),
+        builder: (_, _, child) => HomeShell(child: child),
         routes: [
-          GoRoute(path: '/', builder: (_, __) => const DashboardPage()),
-          GoRoute(path: '/assets', builder: (_, __) => const AssetListPage()),
-          GoRoute(path: '/finance', builder: (_, __) => const FireDashboardPage()),
-          GoRoute(path: '/documents', builder: (_, __) => const DocumentListPage()),
-          GoRoute(path: '/mine', builder: (_, __) => const ProfilePage()),
+          GoRoute(path: '/', builder: (_, _) => const DashboardPage()),
+          GoRoute(path: '/assets', builder: (_, _) => const AssetListPage()),
+          GoRoute(path: '/finance', builder: (_, _) => const FireDashboardPage()),
+          GoRoute(path: '/documents', builder: (_, _) => const DocumentListPage()),
+          GoRoute(path: '/mine', builder: (_, _) => const ProfilePage()),
         ],
       ),
 
       // Asset routes — 静态路径必须在 :id 之前
-      GoRoute(path: '/assets/create', builder: (_, __) => const AssetEditPage()),
-      GoRoute(path: '/assets/filter', builder: (_, __) => const AssetFilterPage()),
-      GoRoute(path: '/assets/scan', builder: (_, __) => const ScanPage()),
-      GoRoute(path: '/assets/insurance-gaps', builder: (_, __) => const InsuranceGapsPage()),
+      GoRoute(path: '/assets/create', builder: (_, _) => const AssetEditPage()),
+      GoRoute(path: '/assets/filter', builder: (_, _) => const AssetFilterPage()),
+      GoRoute(path: '/assets/scan', builder: (_, _) => const ScanPage()),
+      GoRoute(path: '/assets/insurance-gaps', builder: (_, _) => const InsuranceGapsPage()),
       GoRoute(path: '/assets/:id', builder: (_, state) => AssetDetailPage(assetId: state.pathParameters['id']!)),
       GoRoute(path: '/assets/:id/edit', builder: (_, state) => AssetEditPage(assetId: state.pathParameters['id'])),
       GoRoute(path: '/assets/:id/relationships', builder: (_, state) => RelationshipPage(assetId: state.pathParameters['id']!)),
       GoRoute(path: '/assets/:id/consumable', builder: (_, state) => ConsumablePage(assetId: state.pathParameters['id']!)),
 
       // Finance
-      GoRoute(path: '/finance/liabilities', builder: (_, __) => const LiabilityPage()),
-      GoRoute(path: '/finance/income-expense', builder: (_, __) => const IncomeExpensePage()),
-      GoRoute(path: '/finance/income-expense/stats', builder: (_, __) => const IncomeExpenseStatsPage()),
-      GoRoute(path: '/finance/portfolio', builder: (_, __) => const PortfolioPage()),
+      GoRoute(path: '/finance/liabilities', builder: (_, _) => const LiabilityPage()),
+      GoRoute(path: '/finance/income-expense', builder: (_, _) => const IncomeExpensePage()),
+      GoRoute(path: '/finance/income-expense/stats', builder: (_, _) => const IncomeExpenseStatsPage()),
+      GoRoute(path: '/finance/portfolio', builder: (_, _) => const PortfolioPage()),
       GoRoute(path: '/finance/price/:assetId', builder: (_, state) => PriceChartPage(assetId: state.pathParameters['assetId']!)),
-      GoRoute(path: '/finance/monte-carlo', builder: (_, __) => const MonteCarloPage()),
+      GoRoute(path: '/finance/monte-carlo', builder: (_, _) => const MonteCarloPage()),
       GoRoute(path: '/finance/cost-basis/:assetId', builder: (_, state) => CostBasisPage(assetId: state.pathParameters['assetId']!)),
-      GoRoute(path: '/finance/passive-income', builder: (_, __) => const PassiveIncomePage()),
+      GoRoute(path: '/finance/passive-income', builder: (_, _) => const PassiveIncomePage()),
 
       // Documents
-      GoRoute(path: '/documents/upload', builder: (_, __) => const UploadPage()),
+      GoRoute(path: '/documents/upload', builder: (_, _) => const UploadPage()),
       GoRoute(path: '/documents/:id/pdf', builder: (_, state) => PdfViewerPage(documentId: state.pathParameters['id']!)),
       GoRoute(path: '/documents/:id/image', builder: (_, state) => ImageViewerPage(documentId: state.pathParameters['id']!)),
 
       // Notifications
-      GoRoute(path: '/notifications', builder: (_, __) => const NotificationListPage()),
-      GoRoute(path: '/notifications/settings', builder: (_, __) => const NotificationSettingsPage()),
+      GoRoute(path: '/notifications', builder: (_, _) => const NotificationListPage()),
+      GoRoute(path: '/notifications/settings', builder: (_, _) => const NotificationSettingsPage()),
 
       // Family
-      GoRoute(path: '/family', builder: (_, __) => const FamilyListPage()),
+      GoRoute(path: '/family', builder: (_, _) => const FamilyListPage()),
       GoRoute(path: '/family/:id', builder: (_, state) => FamilyDetailPage(familyId: state.pathParameters['id']!)),
       GoRoute(path: '/family/:id/invite', builder: (_, state) => InvitePage(familyId: state.pathParameters['id']!, inviteCode: state.extra as String?)),
 
       // Settings
-      GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+      GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
 
       // Admin
-      GoRoute(path: '/admin/users', builder: (_, __) => const AdminUsersPage()),
+      GoRoute(path: '/admin/users', builder: (_, _) => const AdminUsersPage()),
     ],
   );
 });

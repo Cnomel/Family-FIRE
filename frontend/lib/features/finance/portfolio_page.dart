@@ -171,7 +171,7 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
           ),
           title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Text(
-            [if (ticker != null) ticker, typeLabel].where((s) => s.isNotEmpty).join(' · '),
+            [?ticker, typeLabel].where((s) => s.isNotEmpty).join(' · '),
             style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
           trailing: Column(

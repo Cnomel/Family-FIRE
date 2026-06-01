@@ -19,8 +19,6 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
   int _currentStep = 0;
   bool _isLoading = false;
   bool _isSaving = false;
-  String? _error;
-
   // Step 1: 分类选择
   String _nature = 'tangible';
   String _utility = 'essential';
@@ -100,7 +98,6 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
       });
     } catch (e) {
       setState(() {
-        _error = '加载失败';
         _isLoading = false;
       });
     }
@@ -111,7 +108,6 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
 
     setState(() {
       _isSaving = true;
-      _error = null;
     });
 
     try {
@@ -170,9 +166,13 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
 
       if (mounted) context.pop();
     } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
     } catch (e) {
-      if (mounted) setState(() => _error = '保存失败，请重试');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('保存失败，请重试')));
+      }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -353,7 +353,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         DropdownButtonFormField<String>(
-          value: value,
+          initialValue: value,
           decoration: InputDecoration(labelText: label),
           items: options.map((opt) => DropdownMenuItem(
             value: opt.$1,

@@ -14,7 +14,6 @@ class RelationshipPage extends ConsumerStatefulWidget {
 
 class _RelationshipPageState extends ConsumerState<RelationshipPage> {
   Map<String, dynamic>? _graphData;
-  Map<String, dynamic>? _relationshipTypes;
   bool _isLoading = true;
 
   @override
@@ -26,13 +25,9 @@ class _RelationshipPageState extends ConsumerState<RelationshipPage> {
   Future<void> _loadData() async {
     try {
       final client = ref.read(apiClientProvider);
-      final results = await Future.wait([
-        client.get('/api/families/current/assets/relationship-graph'),
-        client.get('/api/families/current/assets/relationship-types'),
-      ]);
+      final response = await client.get('/api/families/current/assets/relationship-graph');
       setState(() {
-        _graphData = results[0].data['data'];
-        _relationshipTypes = results[1].data['data'];
+        _graphData = response.data['data'];
         _isLoading = false;
       });
     } catch (e) {

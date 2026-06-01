@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/auth/auth_state.dart';
@@ -17,7 +16,7 @@ class _AdminUsersPageState extends ConsumerState<AdminUsersPage> {
   List<dynamic> _users = [];
   int _total = 0;
   bool _isLoading = true;
-  int _page = 1;
+  final int _page = 1;
   final int _pageSize = 20;
 
   @override

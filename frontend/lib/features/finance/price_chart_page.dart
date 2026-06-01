@@ -56,7 +56,7 @@ class _PriceChartPageState extends ConsumerState<PriceChartPage> {
                     return Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: ChoiceChip(
-                        label: Text('${d}天'),
+                        label: Text('$d天'),
                         selected: _days == d,
                         onSelected: (_) {
                           setState(() => _days = d);
