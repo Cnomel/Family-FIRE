@@ -209,10 +209,8 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
             ],
 
             // 关系
-            if (_relationships.isNotEmpty) ...[
-              _buildRelationships(),
-              const SizedBox(height: 16),
-            ],
+            _buildRelationships(),
+            const SizedBox(height: 16),
 
             // 文档
             if (_documents.isNotEmpty) ...[
@@ -668,79 +666,65 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
   }
 
   Future<void> _createRelationship() async {
-    final targetIdController = TextEditingController();
+    // 加载资产列表
+    List<dynamic> assets = [];
+    try {
+      final client = ref.read(apiClientProvider);
+      final response = await client.get('/api/families/current/assets', queryParams: {
+        'page_size': 100,
+      });
+      final data = response.data['data'];
+      if (data != null && data['assets'] != null) {
+        assets = (data['assets'] as List).where((a) => a['id'] != widget.assetId).toList();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('加载资产列表失败: $e')));
+      }
+      return;
+    }
+
+    if (assets.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('没有其他资产可建立关系')));
+      }
+      return;
+    }
+
+    String? targetId;
     String relType = 'component_of';
     bool isOptional = true;
     bool lifecycleLinked = false;
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('创建关系'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: targetIdController,
-                  decoration: const InputDecoration(labelText: '目标资产ID'),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: relType,
-                  decoration: const InputDecoration(labelText: '关系类型'),
-                  items: const [
-                    DropdownMenuItem(value: 'component_of', child: Text('组成部分')),
-                    DropdownMenuItem(value: 'contains', child: Text('包含')),
-                    DropdownMenuItem(value: 'requires', child: Text('需要')),
-                    DropdownMenuItem(value: 'manages', child: Text('管理')),
-                    DropdownMenuItem(value: 'provides', child: Text('提供')),
-                    DropdownMenuItem(value: 'protects', child: Text('保护')),
-                    DropdownMenuItem(value: 'funds', child: Text('资助')),
-                    DropdownMenuItem(value: 'secures', child: Text('担保')),
-                    DropdownMenuItem(value: 'accesses', child: Text('访问')),
-                    DropdownMenuItem(value: 'substitutes', child: Text('替代')),
-                  ],
-                  onChanged: (v) => setDialogState(() => relType = v ?? relType),
-                ),
-                const SizedBox(height: 8),
-                CheckboxListTile(
-                  title: const Text('可选关系'),
-                  value: isOptional,
-                  onChanged: (v) => setDialogState(() => isOptional = v ?? true),
-                  contentPadding: EdgeInsets.zero,
-                ),
-                CheckboxListTile(
-                  title: const Text('生命周期关联'),
-                  value: lifecycleLinked,
-                  onChanged: (v) => setDialogState(() => lifecycleLinked = v ?? false),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('创建')),
-          ],
-        ),
+      builder: (dialogCtx) => _CreateRelationshipDialog(
+        assets: assets,
+        onConfirm: (id, type, optional, linked) {
+          targetId = id;
+          relType = type;
+          isOptional = optional;
+          lifecycleLinked = linked;
+        },
       ),
     );
 
-    if (confirmed == true && targetIdController.text.trim().isNotEmpty) {
+    if (confirmed == true && targetId != null) {
       try {
         final client = ref.read(apiClientProvider);
         await client.post('/api/families/current/assets/${widget.assetId}/relationships', data: {
-          'target_asset_id': targetIdController.text.trim(),
+          'target_asset_id': targetId,
           'type': relType,
           'is_optional': isOptional,
           'lifecycle_linked': lifecycleLinked,
         });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('关系创建成功')));
+        }
         _loadData();
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('创建关系失败')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('创建关系失败: $e')));
         }
       }
     }
@@ -900,5 +884,183 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
         ],
       ),
     );
+  }
+}
+
+class _CreateRelationshipDialog extends StatefulWidget {
+  final List<dynamic> assets;
+  final Function(String targetId, String relType, bool isOptional, bool lifecycleLinked) onConfirm;
+
+  const _CreateRelationshipDialog({
+    required this.assets,
+    required this.onConfirm,
+  });
+
+  @override
+  State<_CreateRelationshipDialog> createState() => _CreateRelationshipDialogState();
+}
+
+class _CreateRelationshipDialogState extends State<_CreateRelationshipDialog> {
+  String? _targetId;
+  String _relType = 'component_of';
+  bool _isOptional = true;
+  bool _lifecycleLinked = false;
+  String _searchQuery = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final filteredAssets = _searchQuery.isEmpty
+        ? widget.assets
+        : widget.assets
+            .where((a) => (a['name'] as String? ?? '').toLowerCase().contains(_searchQuery.toLowerCase()))
+            .toList();
+
+    return AlertDialog(
+      title: const Text('创建关系'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: '搜索资产',
+                  prefixIcon: Icon(Icons.search),
+                  hintText: '输入资产名称搜索',
+                ),
+                onChanged: (v) => setState(() => _searchQuery = v),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 200),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: filteredAssets.isEmpty
+                    ? const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Text('没有找到资产', style: TextStyle(color: Colors.grey)),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: filteredAssets.length,
+                        itemBuilder: (_, index) {
+                          final asset = filteredAssets[index];
+                          final isSelected = _targetId == asset['id'];
+                          return ListTile(
+                            dense: true,
+                            leading: Icon(
+                              _getNatureIcon(asset['nature']),
+                              size: 20,
+                              color: isSelected ? Theme.of(context).colorScheme.primary : null,
+                            ),
+                            title: Text(asset['name'] ?? ''),
+                            subtitle: Text(_getNatureLabel(asset['nature'])),
+                            selected: isSelected,
+                            onTap: () => setState(() => _targetId = asset['id']),
+                          );
+                        },
+                      ),
+              ),
+              if (_targetId != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  '已选择: ${widget.assets.firstWhere((a) => a['id'] == _targetId, orElse: () => {'name': ''})['name']}',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _relType,
+                decoration: const InputDecoration(labelText: '关系类型'),
+                items: const [
+                  DropdownMenuItem(value: 'component_of', child: Text('组成部分')),
+                  DropdownMenuItem(value: 'contains', child: Text('包含')),
+                  DropdownMenuItem(value: 'requires', child: Text('需要')),
+                  DropdownMenuItem(value: 'manages', child: Text('管理')),
+                  DropdownMenuItem(value: 'provides', child: Text('提供')),
+                  DropdownMenuItem(value: 'protects', child: Text('保护')),
+                  DropdownMenuItem(value: 'funds', child: Text('资助')),
+                  DropdownMenuItem(value: 'secures', child: Text('担保')),
+                  DropdownMenuItem(value: 'accesses', child: Text('访问')),
+                  DropdownMenuItem(value: 'substitutes', child: Text('替代')),
+                ],
+                onChanged: (v) => setState(() => _relType = v ?? _relType),
+              ),
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                title: const Text('可选关系'),
+                value: _isOptional,
+                onChanged: (v) => setState(() => _isOptional = v ?? true),
+                contentPadding: EdgeInsets.zero,
+              ),
+              CheckboxListTile(
+                title: const Text('生命周期关联'),
+                value: _lifecycleLinked,
+                onChanged: (v) => setState(() => _lifecycleLinked = v ?? false),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('取消'),
+        ),
+        ElevatedButton(
+          onPressed: _targetId != null
+              ? () {
+                  widget.onConfirm(_targetId!, _relType, _isOptional, _lifecycleLinked);
+                  Navigator.pop(context, true);
+                }
+              : null,
+          child: const Text('创建'),
+        ),
+      ],
+    );
+  }
+
+  IconData _getNatureIcon(String? nature) {
+    switch (nature) {
+      case 'tangible':
+        return Icons.home;
+      case 'digital':
+        return Icons.computer;
+      case 'financial':
+        return Icons.account_balance;
+      case 'intangible':
+        return Icons.description;
+      case 'service':
+        return Icons.cloud;
+      default:
+        return Icons.category;
+    }
+  }
+
+  String _getNatureLabel(String? nature) {
+    switch (nature) {
+      case 'tangible':
+        return '实物资产';
+      case 'digital':
+        return '数字资产';
+      case 'financial':
+        return '金融资产';
+      case 'intangible':
+        return '无形资产';
+      case 'service':
+        return '服务';
+      default:
+        return '';
+    }
   }
 }
