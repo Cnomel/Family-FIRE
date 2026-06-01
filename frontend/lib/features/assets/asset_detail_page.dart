@@ -378,13 +378,13 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
           children: [
             const Text('财务信息', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
-            _buildInfoRow('购买价格', formatCurrency(toDouble(financial['purchase_price']))),
+            _buildInfoRow('购买价格', formatCurrency(toDouble(financial['purchase_price']), currency: financial['currency'] == 'USD' ? '\$' : '¥')),
             _buildInfoRow('购买日期', financial['purchase_date'] != null
                 ? formatDateShort(DateTime.parse(financial['purchase_date']))
                 : '-'),
-            _buildInfoRow('当前价值', formatCurrency(toDouble(financial['current_value']))),
+            _buildInfoRow('当前价值', formatCurrency(toDouble(financial['current_value']), currency: financial['currency'] == 'USD' ? '\$' : '¥')),
             _buildInfoRow('货币', financial['currency'] ?? 'CNY'),
-            _buildInfoRow('总持有成本', formatCurrency(toDouble(financial['total_cost_of_ownership']))),
+            _buildInfoRow('总持有成本', formatCurrency(toDouble(financial['total_cost_of_ownership']), currency: financial['currency'] == 'USD' ? '\$' : '¥')),
             _buildInfoRow('月持有成本', formatCurrency(toDouble(financial['monthly_carrying_cost']))),
           ],
         ),

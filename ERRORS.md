@@ -26,6 +26,30 @@
 - **预防**: 新增模型时检查 SQLite 兼容性
 
 ### BE-003: Alembic 迁移需要 `render_as_batch`
+
+### BE-004: 新浪财经 API 返回 GBK 编码
+- **日期**: 2026-06-01
+- **模块**: finance/providers/price_service.py
+- **错误**: 新浪财经 API (`hq.sinajs.cn`) 返回 GBK 编码的数据，但 httpx 默认按 UTF-8 解析，导致中文股票名称乱码
+- **根因**: 新浪 API 使用 GBK 编码，httpx 的 `resp.text` 自动使用 `charset` 检测编码，但检测不准确
+- **修复**: 使用 `resp.content.decode('gbk', errors='replace')` 手动解码
+- **预防**: 涉及国内金融 API 时，注意编码问题，优先使用 `.content` 手动解码
+
+### BE-005: Yahoo Finance 在国内无法访问
+- **日期**: 2026-06-01
+- **模块**: finance/providers/price_service.py
+- **错误**: Yahoo Finance API (`query1.finance.yahoo.com`) 在国内网络环境下无法访问
+- **根因**: Yahoo Finance 在国内被墙或网络不稳定
+- **修复**: 为美股添加新浪财经数据源 (`gb_` 前缀) 作为后备方案
+- **预防**: 国内可用的数据源：新浪财经 (A股/美股)、东方财富 (基金)、CoinGecko (加密货币)
+
+### BE-006: 美股查询缺少 Alpha Vantage API Key
+- **日期**: 2026-06-01
+- **模块**: finance/providers/price_service.py
+- **错误**: `.env` 中 `ALPHAVANTAGE_API_KEY` 为空，美股查询直接返回 None
+- **根因**: 未配置 Alpha Vantage API Key
+- **修复**: 添加新浪财经美股数据源作为兜底，不再强依赖 Alpha Vantage
+- **预防**: 免费 API Key 可在 https://www.alphavantage.co/support/#api-key 获取
 - **日期**: 2026-05-29
 - **模块**: 数据库迁移
 - **错误**: SQLite 不支持 `ALTER TABLE` 的某些操作

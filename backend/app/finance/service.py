@@ -719,6 +719,7 @@ async def get_portfolio(
             "name": asset.name,
             "instrument_type": metadata.instrument_type if metadata else None,
             "ticker": metadata.ticker if metadata else None,
+            "currency": financial.currency if financial else "CNY",
             "shares": net_shares,
             "average_cost": (remaining_cost / net_shares) if net_shares > 0 else 0,
             "current_value": current_value,

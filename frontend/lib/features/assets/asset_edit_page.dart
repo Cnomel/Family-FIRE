@@ -621,7 +621,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
                   const Icon(Icons.check_circle_outline, size: 20, color: Colors.green),
                   const SizedBox(width: 8),
                   Text(
-                    '当前市场价: ¥${_metadataControllers['current_price']!.text}',
+                    '当前市场价: ${_currencyController.text == 'USD' ? '\$' : '¥'}${_metadataControllers['current_price']!.text}',
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.green),
                   ),
                 ],
@@ -711,8 +711,10 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
       final data = response.data['data'];
       final price = data['price'] as double?;
       final name = data['name'] as String?;
+      final currency = data['currency'] as String? ?? 'CNY';
 
       if (price != null) {
+        final currencySymbol = currency == 'USD' ? '\$' : '¥';
         // 每次查询都更新名称（跟随代码变化）
         setState(() {
           if (name != null && name.isNotEmpty) {
@@ -720,12 +722,14 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           }
           // 将当前价格存到metadata控制器中
           _metadataControllers['current_price']?.text = price.toString();
+          // 更新货币
+          _currencyController.text = currency;
         });
 
         if (mounted) {
           final nameInfo = name != null ? ' ($name)' : '';
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('查询成功$nameInfo: 当前市场价 ¥${price.toStringAsFixed(4)}')),
+            SnackBar(content: Text('查询成功$nameInfo: 当前市场价 $currencySymbol${price.toStringAsFixed(4)}')),
           );
         }
       } else {

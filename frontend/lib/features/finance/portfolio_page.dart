@@ -153,6 +153,8 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
     final gainPercent = toDouble(holding['gain_percent']);
     final recentTxs = holding['recent_transactions'] as List? ?? [];
     final assetId = holding['asset_id'] ?? '';
+    final currency = holding['currency'] as String? ?? 'CNY';
+    final currencySymbol = currency == 'USD' ? '\$' : '¥';
 
     final isProfit = gain >= 0;
     final typeLabel = _getInstrumentTypeLabel(instrumentType);
@@ -183,7 +185,7 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
                 style: const TextStyle(fontWeight: FontWeight.w600),
               ),
               Text(
-                '${isProfit ? '+' : ''}${formatCurrency(gain)} (${gainPercent.toStringAsFixed(2)}%)',
+                '${isProfit ? '+' : ''}${formatCurrency(gain, currency: currencySymbol)} (${gainPercent.toStringAsFixed(2)}%)',
                 style: TextStyle(fontSize: 12, color: isProfit ? AppColors.profit : AppColors.loss),
               ),
             ],
@@ -195,9 +197,9 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
               child: Column(
                 children: [
                   const Divider(),
-                  _buildDetailRow('持有份额', shares.toStringAsFixed(2)),
-                  _buildDetailRow('总成本', formatCurrency(cost)),
-                  _buildDetailRow('当前市值', formatCurrency(currentValue)),
+                    _buildDetailRow('持有份额', shares.toStringAsFixed(2)),
+                    _buildDetailRow('总成本', formatCurrency(cost, currency: currencySymbol)),
+                    _buildDetailRow('当前市值', formatCurrency(currentValue, currency: currencySymbol)),
                   if (recentTxs.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     const Align(

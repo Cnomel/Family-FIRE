@@ -261,7 +261,8 @@ class ChinaStockProvider(PriceProvider):
                     logger.warning("china_stock_no_data", symbol=symbol)
                     return None
 
-                text = resp.text
+                # Sina API returns GBK encoding
+                text = resp.content.decode('gbk', errors='replace')
                 # Parse response: var hq_str_sh600519="贵州茅台,1800.00,..."
                 parts = text.split('"')
                 if len(parts) < 2:
@@ -300,6 +301,62 @@ class ChinaStockProvider(PriceProvider):
         return results
 
 
+class ChinaStockUSProvider(PriceProvider):
+    """Provider for US stocks using Sina Finance API (accessible from China)."""
+
+    async def get_price(self, symbol: str, currency: str = "USD") -> dict[str, Any] | None:
+        try:
+            code = f'gb_{symbol.lower()}'
+
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    f'https://hq.sinajs.cn/list={code}',
+                    headers={'Referer': 'https://finance.sina.com.cn/'},
+                )
+                if resp.status_code != 200:
+                    logger.warning("china_stock_us_no_data", symbol=symbol)
+                    return None
+
+                # Sina API returns GBK encoding
+                text = resp.content.decode('gbk', errors='replace')
+                # Parse response: var hq_str_gb_aapl="苹果,312.0600,..."
+                parts = text.split('"')
+                if len(parts) < 2:
+                    logger.warning("china_stock_us_parse_error", symbol=symbol)
+                    return None
+
+                data = parts[1].split(',')
+                if len(data) < 2:
+                    logger.warning("china_stock_us_parse_error", symbol=symbol)
+                    return None
+
+                name = data[0]
+                price = float(data[1])  # Current price for US stocks
+
+                if not price:
+                    logger.warning("china_stock_us_no_price", symbol=symbol)
+                    return None
+
+                return {
+                    "price": price,
+                    "currency": "USD",
+                    "source": "sina",
+                    "name": name,
+                    "timestamp": utcnow(),
+                }
+        except Exception as e:
+            logger.error("china_stock_us_error", symbol=symbol, error=str(e))
+            return None
+
+    async def get_batch_prices(self, symbols: list[str]) -> dict[str, float]:
+        results = {}
+        for symbol in symbols:
+            price_info = await self.get_price(symbol)
+            if price_info:
+                results[symbol] = price_info["price"]
+        return results
+
+
 class PriceProviderFactory:
     """Factory to get the appropriate price provider."""
 
@@ -309,6 +366,7 @@ class PriceProviderFactory:
         "yahoo": YahooFinanceProvider,
         "china_fund": ChinaFundProvider,
         "china_stock": ChinaStockProvider,
+        "china_stock_us": ChinaStockUSProvider,
     }
 
     @classmethod

@@ -333,9 +333,11 @@ async def lookup_instrument(
     elif instrument_type == "stock":
         if is_chinese_stock:
             providers = ["china_stock"]
+            currency = "CNY"
         else:
-            providers = ["alphavantage"]
-        currency = "CNY"
+            # 美股等国际股票：Alpha Vantage 优先，新浪美股兜底
+            providers = ["alphavantage", "china_stock_us"]
+            currency = "USD"
     elif is_chinese_stock and instrument_type in ("etf", "fund"):
         # 用户可能输入的是股票代码但选择了基金类型
         providers = ["china_stock"]
