@@ -25,6 +25,7 @@ import '../features/finance/price_chart_page.dart';
 import '../features/finance/monte_carlo_page.dart';
 import '../features/finance/cost_basis_page.dart';
 import '../features/finance/passive_income_page.dart';
+import '../features/finance/trade_page.dart';
 import '../features/documents/document_list_page.dart';
 import '../features/documents/pdf_viewer_page.dart';
 import '../features/documents/image_viewer_page.dart';
@@ -97,6 +98,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/assets/:id/edit', builder: (_, state) => AssetEditPage(assetId: state.pathParameters['id'])),
       GoRoute(path: '/assets/:id/relationships', builder: (_, state) => RelationshipPage(assetId: state.pathParameters['id']!)),
       GoRoute(path: '/assets/:id/consumable', builder: (_, state) => ConsumablePage(assetId: state.pathParameters['id']!)),
+      GoRoute(path: '/assets/:id/trade', builder: (_, state) => TradePage(assetId: state.pathParameters['id']!)),
 
       // Finance
       GoRoute(path: '/finance/liabilities', builder: (_, _) => const LiabilityPage()),

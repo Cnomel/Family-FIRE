@@ -7,15 +7,16 @@ Supports:
 """
 
 import asyncio
+import http.client
+import ssl
 from abc import ABC, abstractmethod
-from datetime import datetime
 from typing import Any, ClassVar
 
 import httpx
 
 from app.common.logging import get_logger
-from app.config import get_settings
 from app.common.utils import utcnow
+from app.config import get_settings
 
 logger = get_logger("price_provider")
 settings = get_settings()
@@ -192,43 +193,56 @@ class ChinaFundProvider(PriceProvider):
 
     async def get_price(self, symbol: str, currency: str = "CNY") -> dict[str, Any] | None:
         try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                # eastmoney fund API
-                resp = await client.get(
-                    f"https://fundgz.1234567.com.cn/js/{symbol}.js",
-                    headers={"Referer": "https://fund.eastmoney.com/"},
-                )
-                if resp.status_code != 200:
-                    logger.warning("china_fund_no_data", symbol=symbol)
-                    return None
+            text = await asyncio.to_thread(self._fetch_fund, symbol)
 
-                # Parse JSONP response: jsonpgz({"fundcode":"110022","name":"...",...})
-                text = resp.text
-                start = text.find("{")
-                end = text.rfind("}") + 1
-                if start < 0 or end <= 0:
-                    logger.warning("china_fund_parse_error", symbol=symbol)
-                    return None
+            if not text:
+                return None
 
-                import json
-                data = json.loads(text[start:end])
-                price = float(data.get("gsz", 0))
-                name = data.get("name", "")
+            # Parse JSONP response: jsonpgz({"fundcode":"110022","name":"...",...})
+            import json
 
-                if not price:
-                    logger.warning("china_fund_no_price", symbol=symbol)
-                    return None
+            start = text.find("{")
+            end = text.rfind("}") + 1
+            if start < 0 or end <= 0:
+                logger.warning("china_fund_parse_error", symbol=symbol)
+                return None
 
-                return {
-                    "price": price,
-                    "currency": "CNY",
-                    "source": "eastmoney",
-                    "name": name,
-                    "timestamp": utcnow(),
-                }
+            data = json.loads(text[start:end])
+            price = float(data.get("gsz", 0))
+            name = data.get("name", "")
+
+            if not price:
+                logger.warning("china_fund_no_price", symbol=symbol)
+                return None
+
+            return {
+                "price": price,
+                "currency": "CNY",
+                "source": "eastmoney",
+                "name": name,
+                "timestamp": utcnow(),
+            }
         except Exception as e:
             logger.error("china_fund_error", symbol=symbol, error=str(e))
             return None
+
+    @staticmethod
+    def _fetch_fund(symbol: str) -> str | None:
+        """Fetch fund data from eastmoney using http.client."""
+        try:
+            ctx = ssl._create_unverified_context()
+            conn = http.client.HTTPSConnection("fundgz.1234567.com.cn", timeout=15, context=ctx)
+            conn.request("GET", f"/js/{symbol}.js", headers={"Referer": "https://fund.eastmoney.com/"})
+            resp = conn.getresponse()
+            if resp.status != 200:
+                logger.warning("china_fund_no_data", symbol=symbol, status=resp.status)
+                return None
+            return resp.read().decode("utf-8", errors="replace")
+        except Exception as e:
+            logger.error("china_fund_fetch_error", symbol=symbol, error=str(e))
+            return None
+        finally:
+            conn.close()
 
     async def get_batch_prices(self, symbols: list[str]) -> dict[str, float]:
         results = {}
@@ -252,45 +266,57 @@ class ChinaStockProvider(PriceProvider):
             else:
                 code = symbol
 
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(
-                    f'https://hq.sinajs.cn/list={code}',
-                    headers={'Referer': 'https://finance.sina.com.cn/'},
-                )
-                if resp.status_code != 200:
-                    logger.warning("china_stock_no_data", symbol=symbol)
-                    return None
+            text = await asyncio.to_thread(self._fetch_sina, code)
 
-                # Sina API returns GBK encoding
-                text = resp.content.decode('gbk', errors='replace')
-                # Parse response: var hq_str_sh600519="贵州茅台,1800.00,..."
-                parts = text.split('"')
-                if len(parts) < 2:
-                    logger.warning("china_stock_parse_error", symbol=symbol)
-                    return None
+            if not text:
+                return None
 
-                data = parts[1].split(',')
-                if len(data) < 4:
-                    logger.warning("china_stock_parse_error", symbol=symbol)
-                    return None
+            # Parse response: var hq_str_sh600519="贵州茅台,1800.00,..."
+            parts = text.split('"')
+            if len(parts) < 2:
+                logger.warning("china_stock_parse_error", symbol=symbol, text=text)
+                return None
 
-                name = data[0]
-                price = float(data[3])  # Current price
+            data = parts[1].split(',')
+            if len(data) < 4:
+                logger.warning("china_stock_parse_error", symbol=symbol, data=data)
+                return None
 
-                if not price:
-                    logger.warning("china_stock_no_price", symbol=symbol)
-                    return None
+            name = data[0]
+            price = float(data[3])  # Current price
 
-                return {
-                    "price": price,
-                    "currency": "CNY",
-                    "source": "sina",
-                    "name": name,
-                    "timestamp": utcnow(),
-                }
+            if not price:
+                logger.warning("china_stock_no_price", symbol=symbol)
+                return None
+
+            return {
+                "price": price,
+                "currency": "CNY",
+                "source": "sina",
+                "name": name,
+                "timestamp": utcnow(),
+            }
         except Exception as e:
             logger.error("china_stock_error", symbol=symbol, error=str(e))
             return None
+
+    @staticmethod
+    def _fetch_sina(code: str) -> str | None:
+        """Fetch stock data from Sina Finance API using http.client (works with system proxy)."""
+        try:
+            ctx = ssl._create_unverified_context()
+            conn = http.client.HTTPSConnection("hq.sinajs.cn", timeout=15, context=ctx)
+            conn.request("GET", f"/list={code}", headers={"Referer": "https://finance.sina.com.cn/"})
+            resp = conn.getresponse()
+            if resp.status != 200:
+                logger.warning("china_stock_no_data", code=code, status=resp.status)
+                return None
+            return resp.read().decode("gbk", errors="replace")
+        except Exception as e:
+            logger.error("china_stock_fetch_error", code=code, error=str(e))
+            return None
+        finally:
+            conn.close()
 
     async def get_batch_prices(self, symbols: list[str]) -> dict[str, float]:
         results = {}
@@ -308,42 +334,36 @@ class ChinaStockUSProvider(PriceProvider):
         try:
             code = f'gb_{symbol.lower()}'
 
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(
-                    f'https://hq.sinajs.cn/list={code}',
-                    headers={'Referer': 'https://finance.sina.com.cn/'},
-                )
-                if resp.status_code != 200:
-                    logger.warning("china_stock_us_no_data", symbol=symbol)
-                    return None
+            text = await asyncio.to_thread(ChinaStockProvider._fetch_sina, code)
 
-                # Sina API returns GBK encoding
-                text = resp.content.decode('gbk', errors='replace')
-                # Parse response: var hq_str_gb_aapl="苹果,312.0600,..."
-                parts = text.split('"')
-                if len(parts) < 2:
-                    logger.warning("china_stock_us_parse_error", symbol=symbol)
-                    return None
+            if not text:
+                return None
 
-                data = parts[1].split(',')
-                if len(data) < 2:
-                    logger.warning("china_stock_us_parse_error", symbol=symbol)
-                    return None
+            # Parse response: var hq_str_gb_aapl="苹果,312.0600,..."
+            parts = text.split('"')
+            if len(parts) < 2:
+                logger.warning("china_stock_us_parse_error", symbol=symbol)
+                return None
 
-                name = data[0]
-                price = float(data[1])  # Current price for US stocks
+            data = parts[1].split(',')
+            if len(data) < 2:
+                logger.warning("china_stock_us_parse_error", symbol=symbol)
+                return None
 
-                if not price:
-                    logger.warning("china_stock_us_no_price", symbol=symbol)
-                    return None
+            name = data[0]
+            price = float(data[1])  # Current price for US stocks
 
-                return {
-                    "price": price,
-                    "currency": "USD",
-                    "source": "sina",
-                    "name": name,
-                    "timestamp": utcnow(),
-                }
+            if not price:
+                logger.warning("china_stock_us_no_price", symbol=symbol)
+                return None
+
+            return {
+                "price": price,
+                "currency": "USD",
+                "source": "sina",
+                "name": name,
+                "timestamp": utcnow(),
+            }
         except Exception as e:
             logger.error("china_stock_us_error", symbol=symbol, error=str(e))
             return None

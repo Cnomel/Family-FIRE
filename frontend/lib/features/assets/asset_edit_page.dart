@@ -113,15 +113,11 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
     try {
       final client = ref.read(apiClientProvider);
 
-      // 金融资产：如果有单价和份额，计算总金额
-      if (_nature == 'financial') {
-        final shares = double.tryParse(_metadataControllers['shares']?.text ?? '');
-        final currentPrice = double.tryParse(_metadataControllers['current_price']?.text ?? '');
-        
-        // 如果有市场价和份额，用 市场价 × 份额 作为总金额
-        // 否则用用户输入的购买价格作为总金额
-        if (shares != null && shares > 0 && currentPrice != null && currentPrice > 0) {
-          _purchasePriceController.text = (shares * currentPrice).toString();
+      // 金融资产：如果当前价格为空，先查询最新价格
+      if (_nature == 'financial' && _metadataControllers['ticker']?.text.isNotEmpty == true) {
+        final currentPrice = _metadataControllers['current_price']?.text;
+        if (currentPrice == null || currentPrice.isEmpty || currentPrice == '0') {
+          await _lookupInstrument(_instrumentType);
         }
       }
 
@@ -192,20 +188,14 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.assetId != null ? '编辑资产' : '添加资产'),
-        actions: [
-          if (_currentStep == 3)
-            TextButton(
-              onPressed: _isSaving ? null : _save,
-              child: _isSaving
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('保存'),
-            ),
-        ],
       ),
       body: Form(
         key: _formKey,
         child: Stepper(
           currentStep: _currentStep,
+          onStepTapped: (step) {
+            setState(() => _currentStep = step);
+          },
           onStepContinue: () {
             if (_currentStep < 3) {
               setState(() => _currentStep++);
@@ -217,6 +207,37 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
             if (_currentStep > 0) {
               setState(() => _currentStep--);
             }
+          },
+          controlsBuilder: (context, details) {
+            final isLastStep = _currentStep == 3;
+            final showBack = _currentStep > 0 || isLastStep;
+            return Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Row(
+                children: [
+                  if (showBack)
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: details.onStepCancel,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey[200],
+                          foregroundColor: Colors.grey[800],
+                        ),
+                        child: Text(isLastStep ? '取消' : '上一步'),
+                      ),
+                    ),
+                  if (showBack) const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: _isSaving ? null : details.onStepContinue,
+                      child: _isSaving && isLastStep
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          : Text(isLastStep ? '完成' : '下一步'),
+                    ),
+                  ),
+                ],
+              ),
+            );
           },
           steps: [
             Step(
@@ -250,10 +271,10 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 常见资产模板
-        const Text('快速选择', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        const Text('选择资产类型', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
-        Text('点击即可自动填充分类', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-        const SizedBox(height: 12),
+        Text('点击选择，后续可在编辑中修改', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+        const SizedBox(height: 16),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -273,60 +294,43 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
             _buildTemplateChip('虚拟账号', Icons.account_circle, 'digital', 'lifestyle', 'licensed', 'fixed'),
           ],
         ),
-        const SizedBox(height: 24),
-        const Divider(),
-        const SizedBox(height: 16),
-
-        // 手动选择
-        const Text('手动分类', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 16),
-
-        _buildDropdownWithHint('性质', _nature, [
-          ('tangible', '有形资产', '实物存在的物品，如房产、车辆、家电'),
-          ('digital', '数字资产', '数字空间的资产，如账号、数据、虚拟物品'),
-          ('financial', '金融资产', '货币或证券形式，如股票、基金、存款'),
-          ('intangible', '无形资产', '无实物但有价值的权利，如专利、商标'),
-          ('service', '服务', '持续消费的服务，如保险、订阅、会员'),
-        ], (v) {
-          setState(() {
-            _nature = v;
-            // 如果选择金融资产，确保instrumentType有值
-            if (v == 'financial' && !_isFinancialType(_instrumentType)) {
-              _instrumentType = 'fund'; // 默认基金
-            }
-          });
-        }),
-        const SizedBox(height: 16),
-
-        _buildDropdownWithHint('用途', _utility, [
-          ('productive', '生产性', '能产生收益，如出租房、投资组合'),
-          ('consumable', '消耗品', '使用后会减少，如日用品、食品'),
-          ('protective', '防护性', '提供保障，如保险、应急基金'),
-          ('speculative', '投机性', '以增值为目的的高风险资产'),
-          ('lifestyle', '生活方式', '提升生活品质但不产生收益'),
-          ('essential', '必需品', '生活必需的基础设施'),
-        ], (v) => setState(() => _utility = v)),
-        const SizedBox(height: 16),
-
-        _buildDropdownWithHint('持有方式', _ownership, [
-          ('owned', '自有', '完全拥有所有权'),
-          ('mortgaged', '抵押', '贷款购买，银行持有抵押权'),
-          ('leased', '租赁', '租来的资产，不拥有所有权'),
-          ('subscribed', '订阅', '定期付费获取使用权'),
-          ('licensed', '授权', '通过授权/许可获得使用权'),
-          ('custodied', '托管', '由第三方机构代为保管'),
-        ], (v) => setState(() => _ownership = v)),
-        const SizedBox(height: 16),
-
-        _buildDropdownWithHint('流动性', _liquidity, [
-          ('instant', '即时', '秒级变现，如活期存款、余额宝'),
-          ('high', '高', '天级变现，如股票、ETF'),
-          ('medium', '中', '周/月级变现，如理财产品'),
-          ('low', '低', '月/年级变现，如房产、车辆'),
-          ('fixed', '固定', '到期前无法变现，如定期存款'),
-        ], (v) => setState(() => _liquidity = v)),
+        // 显示已选择的类型
+        if (_nature.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer.withAlpha(64),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.check_circle, size: 20, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  '已选择: ${_getTypeLabel(_nature)}',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
+  }
+
+  String _getTypeLabel(String nature) {
+    switch (nature) {
+      case 'tangible': return '有形资产';
+      case 'digital': return '数字资产';
+      case 'financial': return '金融资产';
+      case 'intangible': return '无形资产';
+      case 'service': return '服务';
+      default: return nature;
+    }
   }
 
   Widget _buildTemplateChip(String label, IconData icon, String nature, String utility, String ownership, String liquidity, {String? instrumentType}) {
@@ -350,37 +354,102 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
     );
   }
 
-  Widget _buildDropdownWithHint(String label, String value, List<(String, String, String)> options, ValueChanged<String> onChanged) {
-    final currentHint = options.where((o) => o.$1 == value).map((o) => o.$3).firstOrNull ?? '';
+  Widget _buildBasicInfoStep() {
+    final isFinancial = _nature == 'financial';
+    final isDepositOrCash = _instrumentType == 'cd' || _instrumentType == 'money_market';
+    final showCodeInput = isFinancial && !isDepositOrCash;
+
+    // 确保控制器存在
+    if (isFinancial && !_metadataControllers.containsKey('ticker')) {
+      _metadataControllers['ticker'] = TextEditingController();
+    }
+    if (isFinancial && !_metadataControllers.containsKey('shares')) {
+      _metadataControllers['shares'] = TextEditingController();
+    }
+    if (isFinancial && !_metadataControllers.containsKey('current_price')) {
+      _metadataControllers['current_price'] = TextEditingController();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DropdownButtonFormField<String>(
-          initialValue: value,
-          decoration: InputDecoration(labelText: label),
-          items: options.map((opt) => DropdownMenuItem(
-            value: opt.$1,
-            child: Text(opt.$2),
-          )).toList(),
-          onChanged: (v) {
-            if (v != null) onChanged(v);
-          },
-        ),
-        if (currentHint.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, left: 12),
-            child: Text(currentHint, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+        // 金融资产：证券代码查询（放在最前面，查询后自动填充名称）
+        if (showCodeInput) ...[
+          const Text('证券代码', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _metadataControllers['ticker'],
+                    decoration: InputDecoration(
+                      hintText: _instrumentType == 'fund' ? '如 110022' : _instrumentType == 'stock' ? '如 AAPL、600519' : '如 510300',
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 80,
+                  child: ElevatedButton(
+                    onPressed: () => _lookupInstrument(_instrumentType),
+                    style: ElevatedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text('查询'),
+                  ),
+                ),
+              ],
+            ),
           ),
-      ],
-    );
-  }
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.lightbulb_outline, size: 14, color: Colors.orange[600]),
+              const SizedBox(width: 4),
+              Text(
+                '查询后自动填充名称和市场价',
+                style: TextStyle(fontSize: 12, color: Colors.orange[600], fontWeight: FontWeight.w500),
+              ),
+            ],
+          ),
+          // 查询结果
+          if (_metadataControllers['current_price']?.text.isNotEmpty == true) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withAlpha(20),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.withAlpha(64)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline, size: 20, color: Colors.green),
+                  const SizedBox(width: 8),
+                  Text(
+                    '当前市场价: ${_currencyController.text == 'USD' ? '\$' : '¥'}${_metadataControllers['current_price']!.text}',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.green),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+        ],
 
-  Widget _buildBasicInfoStep() {
-    return Column(
-      children: [
+        // 资产名称
         TextFormField(
           controller: _nameController,
-          decoration: const InputDecoration(labelText: '资产名称 *'),
+          decoration: InputDecoration(
+            labelText: '资产名称 *',
+            hintText: showCodeInput ? '查询代码后自动填充' : null,
+          ),
           validator: (v) {
             if (v == null || v.trim().isEmpty) return '请输入资产名称';
             return null;
@@ -417,6 +486,11 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
     final isFinancial = _nature == 'financial';
     final isDepositOrCash = _instrumentType == 'cd' || _instrumentType == 'money_market';
     final needsShares = isFinancial && !isDepositOrCash;
+
+    // 确保控制器存在
+    if (needsShares && !_metadataControllers.containsKey('shares')) {
+      _metadataControllers['shares'] = TextEditingController();
+    }
 
     return Column(
       children: [
@@ -459,6 +533,23 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           controller: _currencyController,
           decoration: const InputDecoration(labelText: '货币代码'),
         ),
+        // 金融资产：持有份额
+        if (needsShares) ...[
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _metadataControllers['shares'],
+            decoration: const InputDecoration(
+              labelText: '持有份额',
+              hintText: '如 1000',
+            ),
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '填写你持有的份额数量',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+          ),
+        ],
       ],
     );
   }
@@ -493,48 +584,49 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
   }
 
   Widget _buildFinancialMetadataStep() {
-    // 确保控制器存在
-    if (!_metadataControllers.containsKey('ticker')) {
-      _metadataControllers['ticker'] = TextEditingController();
-    }
-    if (!_metadataControllers.containsKey('shares')) {
-      _metadataControllers['shares'] = TextEditingController();
-    }
-
     final isDeposit = _instrumentType == 'cd';
     final isMoneyMarket = _instrumentType == 'money_market';
-    final showCodeInput = !isDeposit && !isMoneyMarket;
+
+    // 确保控制器存在
+    if (!isDeposit && !isMoneyMarket && !_metadataControllers.containsKey('exchange')) {
+      _metadataControllers['exchange'] = TextEditingController();
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // 金融工具类型选择
-        const Text('选择类型', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 12),
-
-        // 类型选择网格
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 4,
-          mainAxisSpacing: 8,
-          crossAxisSpacing: 8,
-          childAspectRatio: 2.2,
-          children: [
-            _buildTypeChip('基金', 'fund'),
-            _buildTypeChip('ETF', 'etf'),
-            _buildTypeChip('股票', 'stock'),
-            _buildTypeChip('债券', 'bond'),
-            _buildTypeChip('货币基金', 'money_market'),
-            _buildTypeChip('定期存款', 'cd'),
-            _buildTypeChip('加密货币', 'crypto'),
-          ],
+        // 显示已选择的类型
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primaryContainer.withAlpha(64),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(_getInstrumentTypeIcon(_instrumentType), size: 24, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '已选择：${_getInstrumentTypeLabel(_instrumentType)}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    _getInstrumentTypeHint(_instrumentType),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 24),
 
         // 存款类：显示提示
-        if (isDeposit || isMoneyMarket)
+        if (isDeposit || isMoneyMarket) ...[
+          const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -548,127 +640,27 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    '${_getInstrumentTypeLabel(_instrumentType)}只需在"财务信息"步骤填写总金额即可',
+                    '${_getInstrumentTypeLabel(_instrumentType)}只需在上一步填写总金额即可',
                     style: const TextStyle(fontSize: 13),
                   ),
                 ),
               ],
             ),
           ),
+        ],
 
-        // 非存款类：显示代码和份额输入
-        if (showCodeInput) ...[
-          const Text('证券代码', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-
-          // 代码输入 + 查询按钮
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _metadataControllers['ticker'],
-                    decoration: const InputDecoration(
-                      hintText: '如 110022',
-                      border: OutlineInputBorder(),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 80,
-                  child: ElevatedButton(
-                    onPressed: () => _lookupInstrument(_instrumentType),
-                    style: ElevatedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text('查询'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '输入代码点击查询，自动填充名称和获取市场价',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Icon(Icons.lightbulb_outline, size: 14, color: Colors.orange[600]),
-              const SizedBox(width: 4),
-              Text(
-                '名称会自动填写，无需手动输入',
-                style: TextStyle(fontSize: 12, color: Colors.orange[600], fontWeight: FontWeight.w500),
-              ),
-            ],
-          ),
-
-          // 查询结果
-          if (_metadataControllers['current_price']?.text.isNotEmpty == true) ...[
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.green.withAlpha(20),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.withAlpha(64)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.check_circle_outline, size: 20, color: Colors.green),
-                  const SizedBox(width: 8),
-                  Text(
-                    '当前市场价: ${_currencyController.text == 'USD' ? '\$' : '¥'}${_metadataControllers['current_price']!.text}',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.green),
-                  ),
-                ],
-              ),
-            ),
-          ],
-
+        // 交易所（可选）
+        if (!isDeposit && !isMoneyMarket) ...[
           const SizedBox(height: 24),
-          const Text('持有份额', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _metadataControllers['shares'],
+          TextFormField(
+            controller: _metadataControllers['exchange'],
             decoration: const InputDecoration(
-              hintText: '如 1000',
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              labelText: '交易所（可选）',
+              hintText: '如 NASDAQ、NYSE、上交所、深交所',
             ),
-            keyboardType: TextInputType.number,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '填写你持有的份额数量',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
         ],
       ],
-    );
-  }
-
-  Widget _buildTypeChip(String label, String value) {
-    final isSelected = _instrumentType == value;
-    return ChoiceChip(
-      label: Text(label, style: TextStyle(fontSize: 12)),
-      selected: isSelected,
-      onSelected: (selected) {
-        if (selected) {
-          setState(() => _instrumentType = value);
-        }
-      },
-      selectedColor: Theme.of(context).colorScheme.primaryContainer,
-      labelStyle: TextStyle(
-        color: isSelected ? Theme.of(context).colorScheme.primary : null,
-        fontWeight: isSelected ? FontWeight.w600 : null,
-      ),
     );
   }
 
@@ -685,8 +677,30 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
     }
   }
 
-  bool _isFinancialType(String type) {
-    return ['fund', 'etf', 'stock', 'bond', 'money_market', 'cd', 'crypto'].contains(type);
+  IconData _getInstrumentTypeIcon(String type) {
+    switch (type) {
+      case 'fund': return Icons.pie_chart;
+      case 'etf': return Icons.show_chart;
+      case 'stock': return Icons.trending_up;
+      case 'bond': return Icons.account_balance;
+      case 'money_market': return Icons.savings;
+      case 'cd': return Icons.lock;
+      case 'crypto': return Icons.currency_bitcoin;
+      default: return Icons.attach_money;
+    }
+  }
+
+  String _getInstrumentTypeHint(String type) {
+    switch (type) {
+      case 'fund': return '如 110022（易方达蓝筹精选）';
+      case 'etf': return '如 510300（华泰柏瑞沪深300ETF）';
+      case 'stock': return '如 600519（贵州茅台）、AAPL';
+      case 'bond': return '如国债、企业债代码';
+      case 'money_market': return '如余额宝、零钱通';
+      case 'cd': return '银行定期存款';
+      case 'crypto': return '如 BTC、ETH';
+      default: return '';
+    }
   }
 
   Future<void> _lookupInstrument(String instrumentType) async {

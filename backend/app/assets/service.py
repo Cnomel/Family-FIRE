@@ -1,13 +1,12 @@
 """Asset management service with search, stats, and duplicate detection."""
 
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
-
-from app.common.utils import utcnow
 
 from app.assets.models import (
     Asset,
@@ -36,7 +35,9 @@ from app.assets.schemas import (
 )
 from app.common.exceptions import DuplicateError, NotFoundError, PermissionDeniedError
 from app.common.logging import get_logger
+from app.common.utils import utcnow
 from app.families.models import FamilyMember
+from app.finance.models import Transaction
 
 logger = get_logger("asset_service")
 
@@ -155,8 +156,9 @@ async def _add_purchase_to_existing_asset(
 
 async def _sync_asset_financial(db: AsyncSession, asset_id: str) -> None:
     """Sync asset financial data based on transactions."""
-    from app.finance.models import Transaction
     from app.assets.models import AssetFinancial, AssetMetadataFinancial
+    from app.finance.models import Transaction
+    from app.finance.providers.price_service import PriceProviderFactory
 
     # Calculate net shares and cost from transactions
     buy_shares = (await db.execute(
@@ -189,31 +191,48 @@ async def _sync_asset_financial(db: AsyncSession, asset_id: str) -> None:
     metadata_result = await db.execute(metadata_stmt)
     metadata = metadata_result.scalar_one_or_none()
 
-    current_price = None
     if metadata:
         metadata.shares = net_shares if net_shares > 0 else None
         metadata.average_cost_basis = (remaining_cost / net_shares) if net_shares > 0 else None
-        # Update current_price from latest transaction
-        last_tx = (await db.execute(
-            select(Transaction)
-            .where(Transaction.asset_id == asset_id, Transaction.price.isnot(None))
-            .order_by(Transaction.date.desc())
-            .limit(1)
-        )).scalar_one_or_none()
-        if last_tx and last_tx.price:
-            metadata.current_price = last_tx.price
-            current_price = last_tx.price
-        else:
-            current_price = metadata.current_price
+
+        # 查询最新价格
+        ticker = metadata.ticker
+        if ticker:
+            try:
+                # Determine provider based on ticker
+                is_chinese_stock = len(ticker) == 6 and ticker.isdigit() and ticker[0] in ('6', '0', '3')
+                is_chinese_fund = len(ticker) == 6 and ticker.isdigit() and ticker[0] in ('1', '2', '5')
+
+                if is_chinese_stock:
+                    providers = ["china_stock"]
+                    currency = "CNY"
+                elif is_chinese_fund:
+                    providers = ["china_fund"]
+                    currency = "CNY"
+                else:
+                    providers = ["china_stock", "china_fund", "yahoo"]
+                    currency = "CNY"
+
+                result = await PriceProviderFactory.get_price_with_fallback(ticker, providers, currency)
+                if result and result.get("price"):
+                    metadata.current_price = result["price"]
+            except Exception:
+                # 查询失败保留原价格
+                pass
+
         await db.flush()
 
-    # Update AssetFinancial.current_value based on market price
+    # Update AssetFinancial - 更新成本和当前价值
     financial_stmt = select(AssetFinancial).where(AssetFinancial.asset_id == asset_id)
     financial_result = await db.execute(financial_stmt)
     financial = financial_result.scalar_one_or_none()
 
     if financial:
-        # 优先使用市场价计算，没有则用成本价
+        # 更新成本为剩余成本
+        financial.purchase_price = remaining_cost
+
+        # 使用实时价格计算当前价值
+        current_price = metadata.current_price if metadata else None
         if current_price and net_shares > 0:
             financial.current_value = current_price * net_shares
         else:
@@ -336,7 +355,30 @@ async def create_asset(
             )
             db.add(meta)
 
-    await db.flush()
+    # For financial assets with shares, create an initial buy transaction
+    if data.nature == "financial" and data.metadata:
+        shares = data.metadata.get("shares")
+        if shares and shares > 0:
+            # Calculate price per share
+            price_per_share = data.purchase_price / shares if shares > 0 else 0
+            transaction = Transaction(
+                id=str(uuid.uuid4()),
+                asset_id=asset_id,
+                family_id=family_id,
+                created_by=user_id,
+                type="buy",
+                date=data.purchase_date or datetime.now(UTC),
+                quantity=shares,
+                price=price_per_share,
+                total=data.purchase_price,
+                notes="初始买入",
+            )
+            db.add(transaction)
+            await db.flush()
+
+            # Sync financial values only when we have transactions
+            await _sync_asset_financial(db, asset_id)
+
     logger.info("asset_created", asset_id=asset_id, family_id=family_id, name=data.name)
 
     return _asset_to_response(asset, financial)

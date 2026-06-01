@@ -7,3 +7,11 @@ double toDouble(dynamic v) {
   if (v is String) return double.tryParse(v) ?? 0;
   return 0;
 }
+
+/// 格式化数字（保留2位小数）
+String formatNumber(double value) {
+  if (value == value.roundToDouble()) {
+    return value.toStringAsFixed(0);
+  }
+  return value.toStringAsFixed(2);
+}

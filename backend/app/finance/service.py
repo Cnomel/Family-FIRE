@@ -429,6 +429,7 @@ async def create_transaction(
 async def _sync_asset_after_transaction(db: AsyncSession, asset_id: str) -> None:
     """Sync asset financial metadata after a transaction is created/updated."""
     from app.assets.models import AssetFinancial, AssetMetadataFinancial
+    from app.finance.providers.price_service import PriceProviderFactory
 
     # Calculate net shares and cost from transactions
     buy_shares = (await db.execute(
@@ -446,14 +447,9 @@ async def _sync_asset_after_transaction(db: AsyncSession, asset_id: str) -> None
         .where(Transaction.asset_id == asset_id, Transaction.type == "buy")
     )).scalar() or 0
 
-    sell_total = (await db.execute(
-        select(func.coalesce(func.sum(Transaction.total), 0))
-        .where(Transaction.asset_id == asset_id, Transaction.type == "sell")
-    )).scalar() or 0
-
     net_shares = buy_shares - sell_shares
 
-    # Calculate remaining cost
+    # Calculate remaining cost using average cost method
     if buy_shares > 0 and sell_shares > 0:
         avg_buy_price = buy_total / buy_shares
         cost_of_sold = avg_buy_price * sell_shares
@@ -466,31 +462,43 @@ async def _sync_asset_after_transaction(db: AsyncSession, asset_id: str) -> None
     metadata_result = await db.execute(metadata_stmt)
     metadata = metadata_result.scalar_one_or_none()
 
-    current_price = None
     if metadata:
         metadata.shares = net_shares if net_shares > 0 else None
         metadata.average_cost_basis = (remaining_cost / net_shares) if net_shares > 0 else None
-        # Update current_price if transaction has price info
-        last_tx = (await db.execute(
-            select(Transaction)
-            .where(Transaction.asset_id == asset_id, Transaction.price.isnot(None))
-            .order_by(Transaction.date.desc())
-            .limit(1)
-        )).scalar_one_or_none()
-        if last_tx and last_tx.price:
-            metadata.current_price = last_tx.price
-            current_price = last_tx.price
-        else:
-            current_price = metadata.current_price
+
+        # 查询实时价格更新 current_price
+        ticker = metadata.ticker
+        if ticker:
+            try:
+                is_chinese_stock = len(ticker) == 6 and ticker.isdigit() and ticker[0] in ('6', '0', '3')
+                is_chinese_fund = len(ticker) == 6 and ticker.isdigit() and ticker[0] in ('1', '2', '5')
+
+                if is_chinese_stock:
+                    providers = ["china_stock"]
+                    currency = "CNY"
+                elif is_chinese_fund:
+                    providers = ["china_fund"]
+                    currency = "CNY"
+                else:
+                    providers = ["china_stock", "china_fund", "yahoo"]
+                    currency = "CNY"
+
+                result = await PriceProviderFactory.get_price_with_fallback(ticker, providers, currency)
+                if result and result.get("price"):
+                    metadata.current_price = result["price"]
+            except Exception:
+                pass
+
         await db.flush()
 
-    # Update AssetFinancial.current_value based on market price
+    # Update AssetFinancial - 更新成本和当前价值
     financial_stmt = select(AssetFinancial).where(AssetFinancial.asset_id == asset_id)
     financial_result = await db.execute(financial_stmt)
     financial = financial_result.scalar_one_or_none()
 
     if financial:
-        # 优先使用市场价计算，没有则用成本价
+        financial.purchase_price = remaining_cost
+        current_price = metadata.current_price if metadata else None
         if current_price and net_shares > 0:
             financial.current_value = current_price * net_shares
         else:

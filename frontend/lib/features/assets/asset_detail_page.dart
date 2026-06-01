@@ -289,6 +289,28 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
                 ),
               ],
             ),
+            // 交易按钮（仅金融资产显示）
+            if (asset['nature'] == 'financial') ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        await context.push('/assets/${widget.assetId}/trade');
+                        if (mounted) _loadData();
+                      },
+                      icon: const Icon(Icons.swap_horiz),
+                      label: const Text('交易'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
