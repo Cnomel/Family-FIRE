@@ -461,20 +461,12 @@ async def _sync_asset_after_transaction(db: AsyncSession, asset_id: str) -> None
     else:
         remaining_cost = buy_total
 
-    # Update AssetFinancial.current_value
-    financial_stmt = select(AssetFinancial).where(AssetFinancial.asset_id == asset_id)
-    financial_result = await db.execute(financial_stmt)
-    financial = financial_result.scalar_one_or_none()
-
-    if financial:
-        financial.current_value = remaining_cost
-        await db.flush()
-
     # Update AssetMetadataFinancial
     metadata_stmt = select(AssetMetadataFinancial).where(AssetMetadataFinancial.asset_id == asset_id)
     metadata_result = await db.execute(metadata_stmt)
     metadata = metadata_result.scalar_one_or_none()
 
+    current_price = None
     if metadata:
         metadata.shares = net_shares if net_shares > 0 else None
         metadata.average_cost_basis = (remaining_cost / net_shares) if net_shares > 0 else None
@@ -487,6 +479,22 @@ async def _sync_asset_after_transaction(db: AsyncSession, asset_id: str) -> None
         )).scalar_one_or_none()
         if last_tx and last_tx.price:
             metadata.current_price = last_tx.price
+            current_price = last_tx.price
+        else:
+            current_price = metadata.current_price
+        await db.flush()
+
+    # Update AssetFinancial.current_value based on market price
+    financial_stmt = select(AssetFinancial).where(AssetFinancial.asset_id == asset_id)
+    financial_result = await db.execute(financial_stmt)
+    financial = financial_result.scalar_one_or_none()
+
+    if financial:
+        # 优先使用市场价计算，没有则用成本价
+        if current_price and net_shares > 0:
+            financial.current_value = current_price * net_shares
+        else:
+            financial.current_value = remaining_cost
         await db.flush()
 
 

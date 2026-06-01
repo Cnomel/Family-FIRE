@@ -113,13 +113,15 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
     try {
       final client = ref.read(apiClientProvider);
 
-      // 金融资产：计算总金额 = 份额 × 单价
+      // 金融资产：如果有单价和份额，计算总金额
       if (_nature == 'financial') {
         final shares = double.tryParse(_metadataControllers['shares']?.text ?? '');
-        final unitPrice = double.tryParse(_purchasePriceController.text);
-        if (shares != null && unitPrice != null && shares > 0 && unitPrice > 0) {
-          // 将单价转换为总金额
-          _purchasePriceController.text = (shares * unitPrice).toString();
+        final currentPrice = double.tryParse(_metadataControllers['current_price']?.text ?? '');
+        
+        // 如果有市场价和份额，用 市场价 × 份额 作为总金额
+        // 否则用用户输入的购买价格作为总金额
+        if (shares != null && shares > 0 && currentPrice != null && currentPrice > 0) {
+          _purchasePriceController.text = (shares * currentPrice).toString();
         }
       }
 
@@ -421,16 +423,16 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
         TextFormField(
           controller: _purchasePriceController,
           decoration: InputDecoration(
-            labelText: needsShares ? '你的买入单价' : (isFinancial ? '总金额' : '购买价格'),
+            labelText: isFinancial ? '总投入金额' : '购买价格',
             prefixText: '¥',
-            hintText: needsShares ? '你实际购买时的价格' : null,
+            hintText: isFinancial ? '你总共投入的金额' : null,
           ),
           keyboardType: TextInputType.number,
         ),
         if (needsShares) ...[
           const SizedBox(height: 8),
           Text(
-            '这是你实际买入的价格，不是当前市场价',
+            '填写你实际投入的总金额，如买入20000份花了20000元',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
         ],
@@ -644,7 +646,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            '份额 × 买入单价 = 总金额',
+            '填写你持有的份额数量',
             style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
         ],
