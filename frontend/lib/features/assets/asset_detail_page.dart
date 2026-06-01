@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:fl_chart/fl_chart.dart';
 
 import '../../core/api/api_client.dart';
 import '../../core/api/api_exception.dart';
@@ -25,7 +24,6 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
   Map<String, dynamic>? _asset;
   Map<String, dynamic>? _lifecycle;
   List<dynamic> _relationships = [];
-  List<dynamic> _valueHistory = [];
   List<dynamic> _documents = [];
   bool _isLoading = true;
   String? _error;
@@ -51,7 +49,6 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
         client.get(familyPath),
         client.get('$familyPath/lifecycle'),
         client.get('$familyPath/relationships'),
-        client.get('$familyPath/value-history', queryParams: {'months': 12}),
         client.get('/api/documents/asset/${widget.assetId}'),
       ]);
 
@@ -59,8 +56,7 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
         _asset = results[0].data['data'];
         _lifecycle = results[1].data['data'];
         _relationships = results[2].data['data'] ?? [];
-        _valueHistory = results[3].data['data'] ?? [];
-        _documents = results[4].data['data'] ?? [];
+        _documents = results[3].data['data'] ?? [];
         _isLoading = false;
       });
     } on ApiException catch (e) {
@@ -185,12 +181,6 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
             // 分类标签
             _buildClassificationChips(asset),
             const SizedBox(height: 16),
-
-            // 价值历史图表
-            if (_valueHistory.isNotEmpty) ...[
-              _buildValueChart(),
-              const SizedBox(height: 16),
-            ],
 
             // 财务信息
             _buildFinancialInfo(financial),
@@ -346,49 +336,6 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
     );
   }
 
-  Widget _buildValueChart() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('价值历史', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 200,
-              child: LineChart(
-                LineChartData(
-                  gridData: const FlGridData(show: false),
-                  titlesData: const FlTitlesData(show: false),
-                  borderData: FlBorderData(show: false),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: _valueHistory.asMap().entries.map((entry) {
-                        return FlSpot(
-                          entry.key.toDouble(),
-                          toDouble(entry.value['value']),
-                        );
-                      }).toList(),
-                      isCurved: true,
-                      color: AppColors.primary,
-                      barWidth: 2,
-                      dotData: const FlDotData(show: false),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: AppColors.primary.withValues(alpha: 0.1),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildFinancialInfo(Map<String, dynamic> financial) {
     return Card(
       child: Padding(
@@ -444,20 +391,29 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
             if (lifecycle['computed_value'] != null)
               _buildInfoRow('计算价值', formatCurrency(toDouble(lifecycle['computed_value']))),
             // 显示轨迹特定配置
-            if (trajectory == 'depreciating' && lifecycle['depreciation_config'] != null) ...[
+            if (() {
+              final c = lifecycle['config'] ?? {};
+              return trajectory == 'depreciating' && c.isNotEmpty;
+            }()) ...[
               const Divider(),
-              _buildInfoRow('折旧率', '${toDouble(lifecycle['depreciation_config']['rate']).toStringAsFixed(1)}%'),
-              _buildInfoRow('残值', formatCurrency(toDouble(lifecycle['depreciation_config']['salvage_value']))),
+              _buildInfoRow('折旧率', '${toDouble(lifecycle['config']['rate']).toStringAsFixed(1)}%'),
+              _buildInfoRow('残值', formatCurrency(toDouble(lifecycle['config']['salvage_value']))),
             ],
-            if (trajectory == 'consumable' && lifecycle['consumption_config'] != null) ...[
+            if (() {
+              final c = lifecycle['config'] ?? {};
+              return trajectory == 'consumable' && c.isNotEmpty;
+            }()) ...[
               const Divider(),
-              _buildInfoRow('当前数量', '${lifecycle['consumption_config']['current_quantity'] ?? 0}'),
-              _buildInfoRow('单位', lifecycle['consumption_config']['unit'] ?? ''),
+              _buildInfoRow('当前数量', '${lifecycle['config']['current_quantity'] ?? 0}'),
+              _buildInfoRow('单位', lifecycle['config']['unit'] ?? ''),
             ],
-            if (trajectory == 'expiring' && lifecycle['expiration_config'] != null) ...[
+            if (() {
+              final c = lifecycle['config'] ?? {};
+              return trajectory == 'expiring' && c.isNotEmpty;
+            }()) ...[
               const Divider(),
-              _buildInfoRow('到期日期', lifecycle['expiration_config']['end_date'] ?? '-'),
-              _buildInfoRow('自动续期', lifecycle['expiration_config']['auto_renew'] == true ? '是' : '否'),
+              _buildInfoRow('到期日期', lifecycle['config']['end_date'] ?? '-'),
+              _buildInfoRow('自动续期', lifecycle['config']['auto_renew'] == true ? '是' : '否'),
             ],
           ],
         ),
@@ -467,15 +423,16 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
 
   Future<void> _updateLifecycle(Map<String, dynamic> lifecycle) async {
     final trajectory = lifecycle['trajectory'] ?? '';
+    final config = lifecycle['config'] ?? {};
     final Map<String, dynamic> configData = {};
 
     // 根据轨迹类型显示不同的编辑表单
     if (trajectory == 'depreciating') {
       final rateController = TextEditingController(
-        text: (lifecycle['depreciation_config']?['rate'] ?? 0).toString(),
+        text: (config['rate'] ?? 0).toString(),
       );
       final salvageController = TextEditingController(
-        text: (lifecycle['depreciation_config']?['salvage_value'] ?? 0).toString(),
+        text: (config['salvage_value'] ?? 0).toString(),
       );
       final confirmed = await showDialog<bool>(
         context: context,
@@ -511,13 +468,13 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
       }
     } else if (trajectory == 'consumable') {
       final qtyController = TextEditingController(
-        text: (lifecycle['consumption_config']?['current_quantity'] ?? 0).toString(),
+        text: (config['current_quantity'] ?? 0).toString(),
       );
       final unitController = TextEditingController(
-        text: lifecycle['consumption_config']?['unit'] ?? '',
+        text: config['unit'] ?? '',
       );
       final thresholdController = TextEditingController(
-        text: (lifecycle['consumption_config']?['reorder_threshold'] ?? 0).toString(),
+        text: (config['reorder_threshold'] ?? 0).toString(),
       );
       final confirmed = await showDialog<bool>(
         context: context,
@@ -548,9 +505,9 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
       }
     } else if (trajectory == 'expiring') {
       final endDateController = TextEditingController(
-        text: lifecycle['expiration_config']?['end_date'] ?? '',
+        text: config['end_date'] ?? '',
       );
-      final autoRenew = lifecycle['expiration_config']?['auto_renew'] ?? false;
+      final autoRenew = config['auto_renew'] ?? false;
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => StatefulBuilder(
