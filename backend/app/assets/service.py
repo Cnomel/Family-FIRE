@@ -7,6 +7,8 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from app.common.utils import utcnow
+
 from app.assets.models import (
     Asset,
     AssetFinancial,
