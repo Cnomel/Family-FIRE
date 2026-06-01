@@ -43,8 +43,8 @@ async def _verify_family_member(db: AsyncSession, family_id: str, user_id: str) 
 
 
 async def compute_net_worth(db: AsyncSession, family_id: str) -> dict[str, Any]:
-    """Compute net worth breakdown."""
-    # Total asset value
+    """Compute net worth breakdown (all assets)."""
+    # Total asset value (all assets)
     asset_stmt = (
         select(func.coalesce(func.sum(AssetFinancial.current_value), 0))
         .join(Asset, Asset.id == AssetFinancial.asset_id)
@@ -87,19 +87,65 @@ async def compute_net_worth(db: AsyncSession, family_id: str) -> dict[str, Any]:
     }
 
 
+async def compute_financial_net_worth(db: AsyncSession, family_id: str) -> dict[str, Any]:
+    """Compute net worth based on financial assets only (for FIRE calculations)."""
+    # Total financial asset value (stocks, funds, deposits, etc.)
+    asset_stmt = (
+        select(func.coalesce(func.sum(AssetFinancial.current_value), 0))
+        .join(Asset, Asset.id == AssetFinancial.asset_id)
+        .where(
+            Asset.family_id == family_id,
+            Asset.status == "active",
+            Asset.nature == "financial",
+        )
+    )
+    asset_result = await db.execute(asset_stmt)
+    total_assets = asset_result.scalar()
+
+    # Total liability
+    liab_stmt = (
+        select(func.coalesce(func.sum(Liability.current_balance), 0))
+        .where(Liability.family_id == family_id, Liability.status == "active")
+    )
+    liab_result = await db.execute(liab_stmt)
+    total_liabilities = liab_result.scalar()
+
+    net_worth = total_assets - total_liabilities
+
+    return {
+        "total_assets": total_assets,
+        "total_liabilities": total_liabilities,
+        "net_worth": net_worth,
+    }
+
+
 async def compute_asset_allocation(db: AsyncSession, family_id: str) -> dict[str, float]:
-    """Compute asset allocation by nature."""
+    """Compute financial asset allocation by instrument type."""
+    from app.assets.models import AssetMetadataFinancial
+
     stmt = (
-        select(Asset.nature, func.sum(AssetFinancial.current_value).label("value"))
-        .join(AssetFinancial, AssetFinancial.asset_id == Asset.id)
-        .where(Asset.family_id == family_id, Asset.status == "active")
-        .group_by(Asset.nature)
+        select(
+            AssetMetadataFinancial.instrument_type,
+            func.sum(AssetFinancial.current_value).label("value"),
+        )
+        .join(Asset, Asset.id == AssetFinancial.asset_id)
+        .outerjoin(AssetMetadataFinancial, AssetMetadataFinancial.asset_id == Asset.id)
+        .where(
+            Asset.family_id == family_id,
+            Asset.status == "active",
+            Asset.nature == "financial",
+        )
+        .group_by(AssetMetadataFinancial.instrument_type)
     )
     result = await db.execute(stmt)
     rows = result.all()
 
     total = sum(row.value for row in rows) or 1
-    return {row.nature: round(row.value / total, 4) for row in rows}
+    allocation = {}
+    for row in rows:
+        key = row.instrument_type or "other"
+        allocation[key] = round(row.value / total, 4)
+    return allocation
 
 
 async def compute_monthly_summary(
@@ -155,12 +201,15 @@ async def compute_fire_metrics(
     withdrawal_rate: float = DEFAULT_WITHDRAWAL_RATE,
     expected_return: float = DEFAULT_EXPECTED_RETURN,
 ) -> dict[str, Any]:
-    """Compute all FIRE metrics."""
-    nw = await compute_net_worth(db, family_id)
+    """Compute all FIRE metrics based on financial assets only."""
+    # 总净资产（所有资产，用于首页显示）
+    total_nw = await compute_net_worth(db, family_id)
+    # 金融净资产（仅金融资产，用于 FIRE 计算）
+    financial_nw = await compute_financial_net_worth(db, family_id)
     summary = await compute_monthly_summary(db, family_id)
 
     annual_expense = summary["annual_expense"]
-    net_worth = nw["net_worth"]
+    net_worth = financial_nw["net_worth"]
 
     # FIRE number
     fire_number = annual_expense / withdrawal_rate if withdrawal_rate > 0 else 0
@@ -191,7 +240,8 @@ async def compute_fire_metrics(
     safe_withdrawal = net_worth * withdrawal_rate
 
     return {
-        "net_worth": nw,
+        "net_worth": total_nw,
+        "financial_net_worth": financial_nw,
         "fire_number": round(fire_number, 2),
         "fi_ratio": round(fi_ratio, 4),
         "years_to_fire": min(years_to_fire, 999),

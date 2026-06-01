@@ -96,6 +96,7 @@ class TestFIREIntegration:
         resp = await client.get(f"/api/families/{family_id}/finance/fire/net-worth", headers=headers)
         assert resp.status_code == 200
         nw = resp.json()["data"]
+        # net-worth 端点返回所有资产的净资产
         assert nw["total_assets"] == 2500000
         assert nw["net_worth"] == 2500000
 
@@ -104,8 +105,8 @@ class TestFIREIntegration:
         resp = await client.get(f"/api/families/{family_id}/finance/fire/allocation", headers=headers)
         assert resp.status_code == 200
         allocation = resp.json()["data"]
-        assert "financial" in allocation
-        assert "tangible" in allocation
+        # 只包含金融资产，按工具类型分组（测试中无 metadata，归为 other）
+        assert "other" in allocation
 
     async def test_monte_carlo_endpoint(self, client):
         headers, family_id = await self._setup(client)

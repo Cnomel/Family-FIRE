@@ -33,24 +33,27 @@ class _FireDashboardPageState extends ConsumerState<FireDashboardPage> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    try {
-      final client = ref.read(apiClientProvider);
-      final results = await Future.wait([
-        client.get('/api/families/current/finance/fire/snapshot'),
-        client.get('/api/families/current/finance/fire/net-worth'),
-        client.get('/api/families/current/finance/fire/allocation'),
-        client.get('/api/families/current/finance/fire/expenses'),
-      ]);
+    final client = ref.read(apiClientProvider);
 
+    // 独立加载，单个失败不影响其他
+    Map<String, dynamic>? snapshot;
+    Map<String, dynamic>? netWorth;
+    Map<String, dynamic>? allocation;
+    Map<String, dynamic>? expenses;
+
+    try { snapshot = (await client.get('/api/families/current/finance/fire/snapshot')).data['data']; } catch (_) {}
+    try { netWorth = (await client.get('/api/families/current/finance/fire/net-worth')).data['data']; } catch (_) {}
+    try { allocation = (await client.get('/api/families/current/finance/fire/allocation')).data['data']; } catch (_) {}
+    try { expenses = (await client.get('/api/families/current/finance/fire/expenses')).data['data']; } catch (_) {}
+
+    if (mounted) {
       setState(() {
-        _snapshot = results[0].data['data'];
-        _netWorth = results[1].data['data'];
-        _allocation = results[2].data['data'];
-        _expenses = results[3].data['data'];
+        _snapshot = snapshot;
+        _netWorth = netWorth;
+        _allocation = allocation;
+        _expenses = expenses;
         _isLoading = false;
       });
-    } catch (e) {
-      setState(() => _isLoading = false);
     }
   }
 
@@ -102,8 +105,8 @@ class _FireDashboardPageState extends ConsumerState<FireDashboardPage> {
   }
 
   Widget _buildFireHeroCard() {
-    final netWorthData = _snapshot?['net_worth'];
-    final netWorth = (netWorthData is Map ? netWorthData['net_worth'] : netWorthData) ?? 0;
+    final financialNwData = _snapshot?['financial_net_worth'];
+    final netWorth = (financialNwData is Map ? financialNwData['net_worth'] : financialNwData) ?? 0;
     final fireNumber = _snapshot?['fire_number'] ?? 0;
     final fiRatio = _snapshot?['fi_ratio'] ?? 0;
 
@@ -259,22 +262,52 @@ class _FireDashboardPageState extends ConsumerState<FireDashboardPage> {
 
   Widget _buildAllocationChart() {
     final allocation = _allocation ?? {};
-    if (allocation.isEmpty) return const SizedBox.shrink();
+
+    // 没有金融资产时显示引导
+    if (allocation.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('资产配置', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 16),
+              const Center(
+                child: Column(
+                  children: [
+                    Icon(Icons.pie_chart_outline, size: 48, color: Colors.grey),
+                    SizedBox(height: 8),
+                    Text('暂无金融资产', style: TextStyle(color: Colors.grey)),
+                    SizedBox(height: 4),
+                    Text('添加股票、基金等金融资产后显示配置', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     final colors = {
-      'stocks': const Color(0xFF1677FF),
-      'bonds': const Color(0xFF13C2C2),
-      'real_estate': const Color(0xFFFA8C16),
-      'crypto': const Color(0xFF722ED1),
-      'cash': const Color(0xFF52C41A),
+      'stock': const Color(0xFF1677FF),
+      'etf': const Color(0xFF13C2C2),
+      'fund': const Color(0xFFFA8C16),
+      'bond': const Color(0xFF722ED1),
+      'money_market': const Color(0xFF52C41A),
+      'cd': const Color(0xFFEB2F96),
+      'crypto': const Color(0xFFFF4D4F),
       'other': const Color(0xFF999999),
     };
     final labels = {
-      'stocks': '股票',
-      'bonds': '债券',
-      'real_estate': '房产',
+      'stock': '股票',
+      'etf': 'ETF',
+      'fund': '基金',
+      'bond': '债券',
+      'money_market': '货币基金',
+      'cd': '定期存款',
       'crypto': '加密货币',
-      'cash': '现金',
       'other': '其他',
     };
 
