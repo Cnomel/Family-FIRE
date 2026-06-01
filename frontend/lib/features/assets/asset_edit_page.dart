@@ -266,6 +266,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
             _buildTemplateChip('订阅服务', Icons.subscriptions, 'service', 'lifestyle', 'subscribed', 'instant'),
             _buildTemplateChip('家电', Icons.kitchen, 'tangible', 'lifestyle', 'owned', 'low'),
             _buildTemplateChip('数码产品', Icons.devices, 'tangible', 'lifestyle', 'owned', 'medium'),
+            _buildTemplateChip('消耗品', Icons.shopping_basket, 'tangible', 'consumable', 'owned', 'low'),
             _buildTemplateChip('收藏品', Icons.brush, 'tangible', 'speculative', 'owned', 'low'),
             _buildTemplateChip('虚拟账号', Icons.account_circle, 'digital', 'lifestyle', 'licensed', 'fixed'),
           ],

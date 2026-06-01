@@ -338,20 +338,26 @@ async def update_lifecycle(
         from app.common.exceptions import NotFoundError
         raise NotFoundError("资产", asset_id)
 
-    # Update config based on trajectory
+    # 先更新 trajectory（如果有），再更新对应的 config
+    if "trajectory" in data:
+        lifecycle.trajectory = data["trajectory"]
+
+    # Update config based on trajectory (使用更新后的 trajectory)
     if lifecycle.trajectory == "depreciating" and "depreciation_config" in data:
         lifecycle.depreciation_config = data["depreciation_config"]
     elif lifecycle.trajectory == "consumable" and "consumption_config" in data:
-        lifecycle.consumption_config = data["consumption_config"]
+        new_config = data["consumption_config"]
+        # 保留原有的 initial_quantity，如果没有则设置为当前数量
+        existing_config = lifecycle.consumption_config or {}
+        if "initial_quantity" not in new_config:
+            new_config["initial_quantity"] = existing_config.get("initial_quantity") or new_config.get("current_quantity", 0)
+        lifecycle.consumption_config = new_config
     elif lifecycle.trajectory == "expiring" and "expiration_config" in data:
         lifecycle.expiration_config = data["expiration_config"]
     elif lifecycle.trajectory == "volatile" and "market_value_config" in data:
         lifecycle.market_value_config = data["market_value_config"]
     elif lifecycle.trajectory == "appreciating" and "appreciation_config" in data:
         lifecycle.appreciation_config = data["appreciation_config"]
-
-    if "trajectory" in data:
-        lifecycle.trajectory = data["trajectory"]
 
     await db.flush()
     return MessageResponse(message="生命周期配置已更新")
