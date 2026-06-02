@@ -109,6 +109,8 @@ class _FireDashboardPageState extends ConsumerState<FireDashboardPage> {
     final netWorth = (financialNwData is Map ? financialNwData['net_worth'] : financialNwData) ?? 0;
     final fireNumber = _snapshot?['fire_number'] ?? 0;
     final fiRatio = _snapshot?['fi_ratio'] ?? 0;
+    final annualExpense = _snapshot?['annual_expense'] ?? 0;
+    final withdrawalRate = _snapshot?['withdrawal_rate'] ?? 0.04;
 
     return Card(
       child: Container(
@@ -161,6 +163,37 @@ class _FireDashboardPageState extends ConsumerState<FireDashboardPage> {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+            // FIRE 数字说明
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(25),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.lightbulb_outline, size: 16, color: Colors.amber),
+                      const SizedBox(width: 6),
+                      const Text(
+                        '什么是 FIRE 数字？',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'FIRE数字 = 年支出 ÷ 提取率\n'
+                    '${formatCurrency(annualExpense)} ÷ ${(withdrawalRate * 100).toStringAsFixed(0)}% = ${formatCurrency(fireNumber)}\n\n'
+                    '当你的资产达到这个数字时，每年提取 ${(withdrawalRate * 100).toStringAsFixed(0)}% 作为生活费，理论上本金可以永续使用（4%法则）。',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.5),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -172,32 +205,63 @@ class _FireDashboardPageState extends ConsumerState<FireDashboardPage> {
     final yearsToFire = _snapshot?['years_to_fire'];
     final safeWithdrawal = toDouble(_snapshot?['safe_withdrawal_monthly']);
 
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _MetricTile(
-            icon: Icons.savings,
-            label: '储蓄率',
-            value: formatPercent(savingsRate),
-            color: AppColors.profit,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _MetricTile(
+                icon: Icons.savings,
+                label: '储蓄率',
+                value: formatPercent(savingsRate),
+                color: AppColors.profit,
+                tooltip: '储蓄率 = (收入 - 支出) / 收入\n越高说明攒钱越快',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _MetricTile(
+                icon: Icons.timer,
+                label: '距FIRE',
+                value: yearsToFire != null ? '${(yearsToFire as num).toStringAsFixed(1)}年' : '-',
+                color: AppColors.primary,
+                tooltip: '按当前储蓄率和7%年化收益\n预估达到FIRE数字的年数',
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _MetricTile(
+                icon: Icons.account_balance_wallet,
+                label: '月安全提取',
+                value: formatCurrency(safeWithdrawal),
+                color: const Color(0xFF13C2C2),
+                tooltip: '净资产 × 4% ÷ 12\n这是你每月可安全提取的金额',
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _MetricTile(
-            icon: Icons.timer,
-            label: '距FIRE',
-            value: yearsToFire != null ? '${(yearsToFire as num).toStringAsFixed(1)}年' : '-',
-            color: AppColors.primary,
+        const SizedBox(height: 8),
+        // 指标说明
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(64),
+            borderRadius: BorderRadius.circular(8),
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _MetricTile(
-            icon: Icons.account_balance_wallet,
-            label: '月安全提取',
-            value: formatCurrency(safeWithdrawal),
-            color: const Color(0xFF13C2C2),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'FIRE = 财务独立，提前退休。核心是攒够年支出25倍的资产，然后每年提取4%生活。',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -302,9 +366,9 @@ class _FireDashboardPageState extends ConsumerState<FireDashboardPage> {
     };
     final labels = {
       'stock': '股票',
-      'etf': 'ETF',
-      'fund': '基金',
-      'bond': '债券',
+      'etf': '场内基金',
+      'fund': '场外基金',
+      'bond': '国债',
       'money_market': '货币基金',
       'cd': '定期存款',
       'crypto': '加密货币',
@@ -464,12 +528,14 @@ class _MetricTile extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
+  final String? tooltip;
 
   const _MetricTile({
     required this.icon,
     required this.label,
     required this.value,
     required this.color,
+    this.tooltip,
   });
 
   @override
@@ -483,7 +549,20 @@ class _MetricTile extends StatelessWidget {
             const SizedBox(height: 6),
             Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
             const SizedBox(height: 2),
-            Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                if (tooltip != null) ...[
+                  const SizedBox(width: 4),
+                  Tooltip(
+                    message: tooltip!,
+                    child: Icon(Icons.help_outline, size: 12, color: Colors.grey[400]),
+                  ),
+                ],
+              ],
+            ),
           ],
         ),
       ),

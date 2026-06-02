@@ -184,40 +184,77 @@ class _IncomeExpensePageState extends ConsumerState<IncomeExpensePage> {
     final isIncome = record['type'] == 'income';
     final amount = toDouble(record['amount']);
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: (isIncome ? AppColors.profit : AppColors.loss).withValues(alpha: 0.1),
-          child: Icon(
-            isIncome ? Icons.arrow_downward : Icons.arrow_upward,
-            color: isIncome ? AppColors.profit : AppColors.loss,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(80),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(128),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: (isIncome ? AppColors.profit : AppColors.loss).withAlpha(30),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              isIncome ? Icons.arrow_downward : Icons.arrow_upward,
+              color: isIncome ? AppColors.profit : AppColors.loss,
+              size: 22,
+            ),
           ),
-        ),
-        title: Text(record['description'] ?? record['category_id'] ?? ''),
-        subtitle: Text(record['date'] != null ? formatDateShort(DateTime.parse(record['date'])) : ''),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${isIncome ? "+" : "-"}${formatCurrency(amount)}',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: isIncome ? AppColors.profit : AppColors.loss,
-              ),
-            ),
-            PopupMenuButton(
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'edit', child: Text('编辑')),
-                const PopupMenuItem(value: 'delete', child: Text('删除', style: TextStyle(color: Colors.red))),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  record['description'] ?? record['category_id'] ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  record['date'] != null ? formatDateShort(DateTime.parse(record['date'])) : '',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ],
-              onSelected: (value) {
-                if (value == 'edit') _editRecord(record);
-                if (value == 'delete') _deleteRecord(record['id']);
-              },
             ),
-          ],
-        ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${isIncome ? "+" : "-"}${formatCurrency(amount)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  color: isIncome ? AppColors.profit : AppColors.loss,
+                ),
+              ),
+            ],
+          ),
+          PopupMenuButton(
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'edit', child: Text('编辑')),
+              const PopupMenuItem(value: 'delete', child: Text('删除', style: TextStyle(color: Colors.red))),
+            ],
+            onSelected: (value) {
+              if (value == 'edit') _editRecord(record);
+              if (value == 'delete') _deleteRecord(record['id']);
+            },
+          ),
+        ],
       ),
     );
   }

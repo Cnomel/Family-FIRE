@@ -207,6 +207,9 @@ async def create_income_expense(
     """Record an income or expense."""
     await _verify_family_member(db, family_id, user_id)
 
+    # 移除时区信息，确保是 naive datetime（数据库是 TIMESTAMP WITHOUT TIME ZONE）
+    record_date = data.date.replace(tzinfo=None) if data.date.tzinfo else data.date
+
     record = IncomeExpenseRecord(
         id=str(uuid.uuid4()),
         family_id=family_id,
@@ -216,7 +219,7 @@ async def create_income_expense(
         subcategory_id=data.subcategory_id,
         amount=data.amount,
         currency=data.currency,
-        date=data.date,
+        date=record_date,
         description=data.description,
         notes=data.notes,
         is_recurring=data.is_recurring,
@@ -403,6 +406,9 @@ async def create_transaction(
     """Record an investment transaction and sync asset data."""
     await _verify_family_member(db, family_id, user_id)
 
+    # 移除时区信息，确保是 naive datetime（数据库是 TIMESTAMP WITHOUT TIME ZONE）
+    transaction_date = data.date.replace(tzinfo=None) if data.date.tzinfo else data.date
+
     transaction = Transaction(
         id=str(uuid.uuid4()),
         asset_id=data.asset_id,
@@ -413,7 +419,7 @@ async def create_transaction(
         price=data.price,
         total=data.total,
         fees=data.fees,
-        date=data.date,
+        date=transaction_date,
         notes=data.notes,
     )
     db.add(transaction)
@@ -710,11 +716,28 @@ async def get_portfolio(
             avg_buy_price = buy_total / buy_shares
             cost_of_sold = avg_buy_price * sell_shares
             remaining_cost = buy_total - cost_of_sold
-        else:
+        elif buy_shares > 0:
             remaining_cost = buy_total
+        else:
+            # 没有交易记录时（定期/国债等），使用购买价格作为成本
+            remaining_cost = financial.purchase_price if financial else 0
 
         current_value = financial.current_value if financial else 0
-        gain = current_value - remaining_cost
+        
+        # 计算收益：优先使用 expected_yield 或 annual_income
+        if metadata and metadata.annual_income is not None and metadata.annual_income > 0:
+            # 使用手动输入的年收益金额
+            gain = metadata.annual_income
+            gain_source = 'manual'
+        elif metadata and metadata.expected_yield is not None and metadata.expected_yield > 0:
+            # 使用年化收益率计算
+            gain = current_value * (metadata.expected_yield / 100)
+            gain_source = 'yield'
+        else:
+            # 使用市值与成本的差额（适用于股票等）
+            gain = current_value - remaining_cost
+            gain_source = 'market'
+        
         gain_percent = (gain / remaining_cost * 100) if remaining_cost > 0 else 0
 
         total_value += current_value
@@ -743,6 +766,9 @@ async def get_portfolio(
             "cost": round(remaining_cost, 2),
             "gain": round(gain, 2),
             "gain_percent": round(gain_percent, 2),
+            "gain_source": gain_source,
+            "expected_yield": metadata.expected_yield if metadata else None,
+            "annual_income": metadata.annual_income if metadata else None,
             "transaction_count": tx_row.tx_count,
             "recent_transactions": [
                 {
@@ -757,7 +783,7 @@ async def get_portfolio(
             ],
         })
 
-    total_gain = total_value - total_cost
+    total_gain = sum(h['gain'] for h in holdings)
     total_gain_percent = (total_gain / total_cost * 100) if total_cost > 0 else 0
 
     return {

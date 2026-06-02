@@ -38,7 +38,8 @@ class _PassiveIncomePageState extends ConsumerState<PassiveIncomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final annual = toDouble(_data?['annual']);
+    final annual = toDouble(_data?['total_annual']);
+    final monthly = toDouble(_data?['total_monthly']);
     final sources = (_data?['sources'] as List<dynamic>?) ?? [];
 
     return Scaffold(
@@ -74,7 +75,7 @@ class _PassiveIncomePageState extends ConsumerState<PassiveIncomePage> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                '月均: ${formatCurrency(annual / 12)}',
+                                '月均: ${formatCurrency(monthly)}',
                                 style: const TextStyle(color: Colors.white70),
                               ),
                             ],
@@ -92,21 +93,124 @@ class _PassiveIncomePageState extends ConsumerState<PassiveIncomePage> {
                           ),
                         )
                       else
-                        ...sources.map((source) => Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: Colors.green.withValues(alpha: 0.1),
-                                  child: const Icon(Icons.trending_up, color: Colors.green),
-                                ),
-                                title: Text(source['asset_name'] ?? source['type'] ?? ''),
-                                subtitle: Text(source['type'] ?? ''),
-                                trailing: Text(
-                                  formatCurrency(toDouble(source['annual_income'])),
-                                  style: const TextStyle(fontWeight: FontWeight.w600),
-                                ),
+                        ...sources.map((source) {
+                          final incomeSource = source['income_source'] ?? '';
+                          final instrumentType = source['instrument_type'] ?? '';
+                          final totalGain = source['total_gain'];
+                          final holdingDays = source['holding_days'];
+                          final cost = toDouble(source['cost']);
+                          
+                          String sourceLabel;
+                          String? detailText;
+                          
+                          switch (incomeSource) {
+                            case 'stable_yield':
+                              sourceLabel = '稳定收益 ${source['yield_rate']}%';
+                              break;
+                            case 'manual':
+                              sourceLabel = '手动输入收益';
+                              break;
+                            case 'calculated':
+                              sourceLabel = '年化收益率 ${source['yield_rate']}%';
+                              if (totalGain != null && holdingDays != null) {
+                                detailText = '总收益 ¥${toDouble(totalGain).toStringAsFixed(2)} · 持仓 $holdingDays天';
+                              }
+                              break;
+                            case 'insufficient':
+                              sourceLabel = '持仓不足或亏损';
+                              if (totalGain != null) {
+                                detailText = '总收益 ¥${toDouble(totalGain).toStringAsFixed(2)}';
+                              }
+                              break;
+                            default:
+                              sourceLabel = '暂无数据';
+                          }
+                          
+                          // 获取资产类型图标
+                          IconData typeIcon;
+                          switch (instrumentType) {
+                            case 'stock':
+                              typeIcon = Icons.show_chart;
+                              break;
+                            case 'etf':
+                              typeIcon = Icons.pie_chart;
+                              break;
+                            case 'fund':
+                              typeIcon = Icons.account_balance_wallet;
+                              break;
+                            case 'cd':
+                              typeIcon = Icons.savings;
+                              break;
+                            case 'bond':
+                              typeIcon = Icons.account_balance;
+                              break;
+                            default:
+                              typeIcon = Icons.trending_up;
+                          }
+                          
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: (incomeSource == 'stable_yield' ? Colors.green : Colors.blue).withAlpha(30),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Icon(typeIcon, color: incomeSource == 'stable_yield' ? Colors.green : Colors.blue, size: 22),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          source['asset_name'] ?? '',
+                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          sourceLabel,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                        if (detailText != null) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            detailText,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: Colors.grey[500],
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        formatCurrency(toDouble(source['estimated_annual_income'])),
+                                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                      ),
+                                      Text(
+                                        '本金 ${formatCurrency(cost)}',
+                                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            )),
+                            ),
+                          );
+                        }),
                     ],
                   ),
                 ),

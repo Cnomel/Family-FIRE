@@ -588,42 +588,197 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('关系', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Row(
+                  children: [
+                    const Text('关系', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    if (_relationships.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${_relationships.length}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 Row(
                   children: [
                     IconButton(
                       icon: const Icon(Icons.add, size: 20),
                       onPressed: () => _createRelationship(),
                     ),
-                    TextButton(
+                    TextButton.icon(
                       onPressed: () async {
                         await context.push('/assets/${widget.assetId}/relationships');
                         if (mounted) _loadData();
                       },
-                      child: const Text('查看关系图'),
+                      icon: const Icon(Icons.account_tree, size: 18),
+                      label: const Text('关系图'),
                     ),
                   ],
                 ),
               ],
             ),
+            const SizedBox(height: 8),
             if (_relationships.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('暂无关系', style: TextStyle(color: Colors.grey)),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.link_off, size: 40, color: Colors.grey.shade400),
+                      const SizedBox(height: 8),
+                      const Text('暂无关系', style: TextStyle(color: Colors.grey)),
+                      const SizedBox(height: 4),
+                      Text(
+                        '点击 + 按钮添加资产关系',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                      ),
+                    ],
+                  ),
+                ),
               )
             else
-              ..._relationships.map((rel) => ListTile(
-                    dense: true,
-                    leading: const Icon(Icons.link, size: 20),
-                    title: Text(_relationshipTypeLabel(rel['type'] ?? '')),
-                    subtitle: Text(rel['target_asset_name'] ?? rel['target_asset_id'] ?? ''),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.close, size: 16),
-                      onPressed: () => _deleteRelationship(rel['id']),
-                    ),
-                  )),
+              ..._relationships.map((rel) => _buildRelationshipItem(rel)),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildRelationshipItem(Map<String, dynamic> rel) {
+    final direction = rel['direction'] as String? ?? 'outgoing';
+    final isOutgoing = direction == 'outgoing';
+    final relType = rel['type'] as String? ?? '';
+    final relatedName = rel['related_asset_name'] as String? ?? '未知资产';
+    final isOptional = rel['is_optional'] as bool? ?? true;
+    final lifecycleLinked = rel['lifecycle_linked'] as bool? ?? false;
+    final typeInfo = rel['type_info'] as Map<String, dynamic>? ?? {};
+    final typeLabel = typeInfo['label'] as String? ?? _relationshipTypeLabel(relType);
+
+    return InkWell(
+      onTap: () async {
+        final relatedId = rel['related_asset_id'];
+        if (relatedId != null) {
+          await context.push('/assets/$relatedId');
+          if (mounted) _loadData();
+        }
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(80),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant.withAlpha(128),
+          ),
+        ),
+        child: Row(
+          children: [
+            // 关系方向图标
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isOutgoing
+                    ? Theme.of(context).colorScheme.primaryContainer
+                    : Theme.of(context).colorScheme.tertiaryContainer,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                isOutgoing ? Icons.arrow_forward : Icons.arrow_back,
+                size: 20,
+                color: isOutgoing
+                    ? Theme.of(context).colorScheme.onPrimaryContainer
+                    : Theme.of(context).colorScheme.onTertiaryContainer,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // 关系信息
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 关系类型
+                  Text(
+                    typeLabel,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  // 相关资产名称
+                  Row(
+                    children: [
+                      Icon(
+                        isOutgoing ? Icons.arrow_right : Icons.arrow_left,
+                        size: 16,
+                        color: Colors.grey,
+                      ),
+                      Expanded(
+                        child: Text(
+                          relatedName,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontSize: 13,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  // 关系属性标签
+                  if (!isOptional || lifecycleLinked) ...[
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 4,
+                      children: [
+                        if (!isOptional)
+                          _buildRelationTag('必需', Colors.orange),
+                        if (lifecycleLinked)
+                          _buildRelationTag('生命周期关联', Colors.purple),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            // 删除按钮
+            IconButton(
+              icon: Icon(Icons.close, size: 18, color: Colors.grey.shade500),
+              onPressed: () => _deleteRelationship(rel['id']),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRelationTag(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withAlpha(30),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withAlpha(80)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 10, color: color.withAlpha(200)),
       ),
     );
   }
@@ -745,31 +900,81 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('文档', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _documents.map((doc) {
-                final isPdf = (doc['mime_type'] ?? '').contains('pdf');
-                return ActionChip(
-                  avatar: Icon(isPdf ? Icons.picture_as_pdf : Icons.image, size: 18),
-                  label: Text(
-                    doc['file_name'] ?? '',
-                    style: const TextStyle(fontSize: 12),
-                    overflow: TextOverflow.ellipsis,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('文档', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                if (_documents.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${_documents.length}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                    ),
                   ),
-                  onPressed: () async {
-                    if (isPdf) {
-                      await context.push('/documents/${doc['id']}/pdf');
-                    } else {
-                      await context.push('/documents/${doc['id']}/image');
-                    }
-                    if (mounted) _loadData();
-                  },
-                );
-              }).toList(),
+              ],
             ),
+            const SizedBox(height: 12),
+            if (_documents.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 20),
+                child: Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.folder_open, size: 40, color: Colors.grey.shade400),
+                      const SizedBox(height: 8),
+                      const Text('暂无文档', style: TextStyle(color: Colors.grey)),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _documents.map((doc) {
+                  final isPdf = (doc['mime_type'] ?? '').contains('pdf');
+                  final color = isPdf ? Colors.red : Colors.blue;
+                  return InkWell(
+                    onTap: () async {
+                      if (isPdf) {
+                        await context.push('/documents/${doc['id']}/pdf');
+                      } else {
+                        await context.push('/documents/${doc['id']}/image');
+                      }
+                      if (mounted) _loadData();
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: color.withAlpha(20),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: color.withAlpha(60)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(isPdf ? Icons.picture_as_pdf : Icons.image, size: 18, color: color),
+                          const SizedBox(width: 6),
+                          Text(
+                            doc['file_name'] ?? '',
+                            style: TextStyle(fontSize: 12, color: color.withAlpha(200)),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
           ],
         ),
       ),
@@ -786,7 +991,28 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('标签', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                Row(
+                  children: [
+                    const Text('标签', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    if (tags.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${tags.length}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
                 IconButton(
                   icon: const Icon(Icons.add, size: 20),
                   onPressed: () => _addTag(),
@@ -794,16 +1020,49 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
               ],
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: tags.map((tag) => Chip(
-                    label: Text(tag, style: const TextStyle(fontSize: 12)),
-                    visualDensity: VisualDensity.compact,
-                    deleteIcon: const Icon(Icons.close, size: 16),
-                    onDeleted: () => _removeTag(tag),
-                  )).toList(),
-            ),
+            if (tags.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: Text(
+                    '点击 + 按钮添加标签',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  ),
+                ),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: tags.map((tag) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer.withAlpha(128),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        tag,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: () => _removeTag(tag),
+                        child: Icon(
+                          Icons.close,
+                          size: 14,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer.withAlpha(180),
+                        ),
+                      ),
+                    ],
+                  ),
+                )).toList(),
+              ),
           ],
         ),
       ),

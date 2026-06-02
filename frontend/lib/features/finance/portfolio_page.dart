@@ -151,6 +151,9 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
     final cost = toDouble(holding['cost']);
     final gain = toDouble(holding['gain']);
     final gainPercent = toDouble(holding['gain_percent']);
+    final gainSource = holding['gain_source'] as String? ?? 'market';
+    final expectedYield = holding['expected_yield'] as double?;
+    final annualIncome = holding['annual_income'] as double?;
     final recentTxs = holding['recent_transactions'] as List? ?? [];
     final assetId = holding['asset_id'] ?? '';
     final currency = holding['currency'] as String? ?? 'CNY';
@@ -158,6 +161,19 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
 
     final isProfit = gain >= 0;
     final typeLabel = _getInstrumentTypeLabel(instrumentType);
+
+    // 收益来源说明
+    String gainSourceLabel;
+    switch (gainSource) {
+      case 'manual':
+        gainSourceLabel = '手动输入收益';
+        break;
+      case 'yield':
+        gainSourceLabel = '年化收益率 ${expectedYield?.toStringAsFixed(1) ?? 0}%';
+        break;
+      default:
+        gainSourceLabel = '市值变动';
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -200,6 +216,11 @@ class _PortfolioPageState extends ConsumerState<PortfolioPage> {
                     _buildDetailRow('持有份额', shares.toStringAsFixed(2)),
                     _buildDetailRow('总成本', formatCurrency(cost, currency: currencySymbol)),
                     _buildDetailRow('当前市值', formatCurrency(currentValue, currency: currencySymbol)),
+                    _buildDetailRow('年收益', formatCurrency(gain, currency: currencySymbol)),
+                    _buildDetailRow('收益来源', gainSourceLabel),
+                  if (annualIncome != null && annualIncome > 0) ...[
+                    _buildDetailRow('年收益金额', formatCurrency(annualIncome, currency: currencySymbol)),
+                  ],
                   if (recentTxs.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     const Align(

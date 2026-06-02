@@ -193,6 +193,8 @@ class AssetMetadataFinancial(TimestampMixin, table=True):
     price_currency: str = Field(default="CNY", max_length=3, description="价格货币")
     expense_ratio: float | None = Field(default=None, description="费率")
     dividend_yield: float | None = Field(default=None, description="股息率")
+    expected_yield: float | None = Field(default=None, description="预期收益率(适用于存款/国债等稳定产品)")
+    annual_income: float | None = Field(default=None, description="年收益金额(适用于理财产品等不确定收益率的产品)")
     tax_advantaged: bool = Field(default=False, description="是否税收优惠")
     account_type: str | None = Field(default=None, max_length=30, description="账户类型")
     price_source: dict | None = Field(default=None, sa_column=Column(JSON), description="价格源配置")

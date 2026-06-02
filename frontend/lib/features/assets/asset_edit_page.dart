@@ -26,6 +26,47 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
   String _liquidity = 'medium';
   String _instrumentType = 'fund'; // 金融工具类型
 
+  // 分类标签映射
+  static const _natureLabels = {
+    'tangible': '有形资产',
+    'digital': '数字资产',
+    'financial': '金融资产',
+    'intangible': '无形资产',
+    'service': '服务',
+  };
+  static const _utilityLabels = {
+    'productive': '生产性',
+    'consumable': '消耗品',
+    'protective': '防护性',
+    'speculative': '投机性',
+    'lifestyle': '生活方式',
+    'essential': '必需品',
+  };
+  static const _ownershipLabels = {
+    'owned': '自有',
+    'mortgaged': '抵押',
+    'leased': '租赁',
+    'subscribed': '订阅',
+    'licensed': '授权',
+    'custodied': '托管',
+  };
+  static const _liquidityLabels = {
+    'instant': '即时',
+    'high': '高',
+    'medium': '中',
+    'low': '低',
+    'fixed': '固定',
+  };
+  static const _instrumentTypeLabels = {
+    'fund': '场外基金',
+    'etf': '场内基金',
+    'stock': '股票',
+    'bond': '债券/国债',
+    'money_market': '货币基金',
+    'cd': '定期存款',
+    'crypto': '加密货币',
+  };
+
   // Step 2: 基本信息
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -134,6 +175,10 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
             'shares': double.tryParse(_metadataControllers['shares']!.text) ?? 0,
           if (_metadataControllers['current_price']?.text.isNotEmpty == true)
             'current_price': double.tryParse(_metadataControllers['current_price']!.text) ?? 0,
+          if (_metadataControllers['expected_yield']?.text.isNotEmpty == true)
+            'expected_yield': double.tryParse(_metadataControllers['expected_yield']!.text) ?? 0,
+          if (_metadataControllers['annual_income']?.text.isNotEmpty == true)
+            'annual_income': double.tryParse(_metadataControllers['annual_income']!.text) ?? 0,
         };
       } else if (_metadataControllers.isNotEmpty) {
         metadata = _metadataControllers.map((k, v) => MapEntry(k, v.text.trim()));
@@ -269,12 +314,91 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
   Widget _buildClassificationStep() {
     final isEditing = widget.assetId != null;
 
-    // 编辑模式：显示手动分类下拉框
-    if (isEditing) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('修改分类', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 快速分类
+        const Text('选择资产类型', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 4),
+        Text(
+          isEditing ? '点击快速切换分类' : '点击选择，后续可在编辑中修改',
+          style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _buildTemplateChip('房产', Icons.home, 'tangible', 'essential', 'owned', 'low'),
+            _buildTemplateChip('汽车', Icons.directions_car, 'tangible', 'essential', 'owned', 'low'),
+            _buildTemplateChip('股票', Icons.show_chart, 'financial', 'speculative', 'custodied', 'high', instrumentType: 'stock'),
+            _buildTemplateChip('场内基金', Icons.pie_chart, 'financial', 'productive', 'custodied', 'high', instrumentType: 'etf'),
+            _buildTemplateChip('场外基金', Icons.account_balance_wallet, 'financial', 'productive', 'custodied', 'medium', instrumentType: 'fund'),
+            _buildTemplateChip('存款', Icons.savings, 'financial', 'protective', 'owned', 'instant', instrumentType: 'cd'),
+            _buildTemplateChip('国债', Icons.account_balance, 'financial', 'protective', 'owned', 'fixed', instrumentType: 'bond'),
+            _buildTemplateChip('理财产品', Icons.trending_up, 'financial', 'productive', 'custodied', 'medium', instrumentType: 'fund'),
+            _buildTemplateChip('保险', Icons.shield, 'service', 'protective', 'subscribed', 'fixed'),
+            _buildTemplateChip('订阅服务', Icons.subscriptions, 'service', 'lifestyle', 'subscribed', 'instant'),
+            _buildTemplateChip('家电', Icons.kitchen, 'tangible', 'lifestyle', 'owned', 'low'),
+            _buildTemplateChip('数码产品', Icons.devices, 'tangible', 'lifestyle', 'owned', 'medium'),
+            _buildTemplateChip('消耗品', Icons.shopping_basket, 'tangible', 'consumable', 'owned', 'low'),
+            _buildTemplateChip('收藏品', Icons.brush, 'tangible', 'speculative', 'owned', 'low'),
+            _buildTemplateChip('虚拟账号', Icons.account_circle, 'digital', 'lifestyle', 'licensed', 'fixed'),
+          ],
+        ),
+
+        // 显示已选择的分类
+        if (_nature.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer.withAlpha(64),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primary.withAlpha(64),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.check_circle, size: 20, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      '当前分类',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildClassificationRow('性质', _nature, _natureLabels),
+                const SizedBox(height: 6),
+                _buildClassificationRow('用途', _utility, _utilityLabels),
+                const SizedBox(height: 6),
+                _buildClassificationRow('持有', _ownership, _ownershipLabels),
+                const SizedBox(height: 6),
+                _buildClassificationRow('流动', _liquidity, _liquidityLabels),
+                if (_nature == 'financial') ...[
+                  const SizedBox(height: 6),
+                  _buildClassificationRow('工具', _instrumentType, _instrumentTypeLabels),
+                ],
+              ],
+            ),
+          ),
+        ],
+
+        // 编辑模式：显示详细分类
+        if (isEditing) ...[
+          const SizedBox(height: 24),
+          const Divider(),
+          const SizedBox(height: 16),
+          const Text('详细分类', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
           _buildDropdownWithHint('性质', _nature, [
             ('tangible', '有形资产', '实物存在的物品，如房产、车辆、家电'),
@@ -317,73 +441,41 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
             ('fixed', '固定', '到期前无法变现，如定期存款'),
           ], (v) => setState(() => _liquidity = v)),
         ],
-      );
-    }
-
-    // 创建模式：显示快速选择
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('选择资产类型', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 4),
-        Text('点击选择，后续可在编辑中修改', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _buildTemplateChip('房产', Icons.home, 'tangible', 'essential', 'owned', 'low'),
-            _buildTemplateChip('汽车', Icons.directions_car, 'tangible', 'essential', 'owned', 'low'),
-            _buildTemplateChip('股票', Icons.show_chart, 'financial', 'speculative', 'custodied', 'high', instrumentType: 'stock'),
-            _buildTemplateChip('基金', Icons.pie_chart, 'financial', 'productive', 'custodied', 'high', instrumentType: 'fund'),
-            _buildTemplateChip('存款', Icons.savings, 'financial', 'protective', 'owned', 'instant', instrumentType: 'cd'),
-            _buildTemplateChip('理财产品', Icons.trending_up, 'financial', 'productive', 'custodied', 'medium', instrumentType: 'fund'),
-            _buildTemplateChip('保险', Icons.shield, 'service', 'protective', 'subscribed', 'fixed'),
-            _buildTemplateChip('订阅服务', Icons.subscriptions, 'service', 'lifestyle', 'subscribed', 'instant'),
-            _buildTemplateChip('家电', Icons.kitchen, 'tangible', 'lifestyle', 'owned', 'low'),
-            _buildTemplateChip('数码产品', Icons.devices, 'tangible', 'lifestyle', 'owned', 'medium'),
-            _buildTemplateChip('消耗品', Icons.shopping_basket, 'tangible', 'consumable', 'owned', 'low'),
-            _buildTemplateChip('收藏品', Icons.brush, 'tangible', 'speculative', 'owned', 'low'),
-            _buildTemplateChip('虚拟账号', Icons.account_circle, 'digital', 'lifestyle', 'licensed', 'fixed'),
-          ],
-        ),
-        // 显示已选择的类型
-        if (_nature.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer.withAlpha(64),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.check_circle, size: 20, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                Text(
-                  '已选择: ${_getTypeLabel(_nature)}',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ],
     );
   }
 
-  String _getTypeLabel(String nature) {
-    switch (nature) {
-      case 'tangible': return '有形资产';
-      case 'digital': return '数字资产';
-      case 'financial': return '金融资产';
-      case 'intangible': return '无形资产';
-      case 'service': return '服务';
-      default: return nature;
-    }
+  Widget _buildClassificationRow(String label, String value, Map<String, String> labels) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 40,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withAlpha(20),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            labels[value] ?? value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildTemplateChip(String label, IconData icon, String nature, String utility, String ownership, String liquidity, {String? instrumentType}) {
@@ -439,7 +531,8 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
   Widget _buildBasicInfoStep() {
     final isFinancial = _nature == 'financial';
     final isDepositOrCash = _instrumentType == 'cd' || _instrumentType == 'money_market';
-    final showCodeInput = isFinancial && !isDepositOrCash;
+    final isBond = _instrumentType == 'bond';
+    final showCodeInput = isFinancial && !isDepositOrCash && !isBond; // 存款、货币基金、国债不需要证券代码
 
     // 确保控制器存在
     if (isFinancial && !_metadataControllers.containsKey('ticker')) {
@@ -567,7 +660,8 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
   Widget _buildFinancialStep() {
     final isFinancial = _nature == 'financial';
     final isDepositOrCash = _instrumentType == 'cd' || _instrumentType == 'money_market';
-    final needsShares = isFinancial && !isDepositOrCash;
+    final isBond = _instrumentType == 'bond';
+    final needsShares = isFinancial && !isDepositOrCash && !isBond; // 存款、货币基金、国债不需要份额
 
     // 确保控制器存在
     if (needsShares && !_metadataControllers.containsKey('shares')) {
@@ -668,10 +762,22 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
   Widget _buildFinancialMetadataStep() {
     final isDeposit = _instrumentType == 'cd';
     final isMoneyMarket = _instrumentType == 'money_market';
+    final isBond = _instrumentType == 'bond';
+    final isOpenEndFund = _instrumentType == 'fund'; // 场外基金
+    final isEtf = _instrumentType == 'etf'; // 场内基金
+    final needsYieldRate = isDeposit || isMoneyMarket || isBond; // 存款、货币基金、国债：输入收益率
+    final needsIncomeAmount = isOpenEndFund || isEtf; // 基金：输入收益金额
+    final needsExchange = isEtf || _instrumentType == 'stock' || _instrumentType == 'crypto'; // 场内基金/股票/加密货币需要交易所
 
     // 确保控制器存在
-    if (!isDeposit && !isMoneyMarket && !_metadataControllers.containsKey('exchange')) {
+    if (needsExchange && !_metadataControllers.containsKey('exchange')) {
       _metadataControllers['exchange'] = TextEditingController();
+    }
+    if (needsYieldRate && !_metadataControllers.containsKey('expected_yield')) {
+      _metadataControllers['expected_yield'] = TextEditingController();
+    }
+    if (needsIncomeAmount && !_metadataControllers.containsKey('annual_income')) {
+      _metadataControllers['annual_income'] = TextEditingController();
     }
 
     return Column(
@@ -706,8 +812,82 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           ),
         ),
 
-        // 存款类：显示提示
-        if (isDeposit || isMoneyMarket) ...[
+        // 收益率输入（存款、货币基金、国债）
+        if (needsYieldRate) ...[
+          const SizedBox(height: 20),
+          TextFormField(
+            controller: _metadataControllers['expected_yield'],
+            decoration: const InputDecoration(
+              labelText: '年化收益率',
+              suffixText: '%',
+              hintText: '如 2.5',
+              helperText: '用于计算被动收入',
+            ),
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.green.withAlpha(20),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.green.withAlpha(64)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, size: 18, color: Colors.green),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '填写年化收益率后，系统将自动计算预计被动收入',
+                    style: TextStyle(fontSize: 12, color: Colors.green[700]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        // 收益金额输入（基金）
+        if (needsIncomeAmount) ...[
+          const SizedBox(height: 20),
+          TextFormField(
+            controller: _metadataControllers['annual_income'],
+            decoration: const InputDecoration(
+              labelText: '年收益金额',
+              prefixText: '¥',
+              hintText: '如 5000',
+              helperText: '填写每年实际收到的收益金额（分红等）',
+            ),
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.withAlpha(20),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.withAlpha(64)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline, size: 18, color: Colors.blue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isOpenEndFund
+                        ? '场外基金每日更新净值，收益填写实际分红金额'
+                        : '场内基金实时交易，收益填写实际分红金额',
+                    style: TextStyle(fontSize: 12, color: Colors.blue[700]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        // 存款类/国债：显示提示
+        if (isDeposit || isMoneyMarket || isBond) ...[
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(16),
@@ -722,7 +902,7 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    '${_getInstrumentTypeLabel(_instrumentType)}只需在上一步填写总金额即可',
+                    '${_getInstrumentTypeLabel(_instrumentType)}只需在上一步填写总金额，然后填写年化收益率即可',
                     style: const TextStyle(fontSize: 13),
                   ),
                 ),
@@ -731,8 +911,8 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           ),
         ],
 
-        // 交易所（可选）
-        if (!isDeposit && !isMoneyMarket) ...[
+        // 交易所（可选，仅股票/加密货币等显示）
+        if (needsExchange) ...[
           const SizedBox(height: 24),
           TextFormField(
             controller: _metadataControllers['exchange'],
@@ -748,10 +928,10 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
 
   String _getInstrumentTypeLabel(String type) {
     switch (type) {
-      case 'fund': return '基金';
-      case 'etf': return 'ETF';
+      case 'fund': return '场外基金';
+      case 'etf': return '场内基金';
       case 'stock': return '股票';
-      case 'bond': return '债券';
+      case 'bond': return '国债';
       case 'money_market': return '货币基金';
       case 'cd': return '定期存款';
       case 'crypto': return '加密货币';
@@ -761,8 +941,8 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
 
   IconData _getInstrumentTypeIcon(String type) {
     switch (type) {
-      case 'fund': return Icons.pie_chart;
-      case 'etf': return Icons.show_chart;
+      case 'fund': return Icons.account_balance_wallet;
+      case 'etf': return Icons.pie_chart;
       case 'stock': return Icons.trending_up;
       case 'bond': return Icons.account_balance;
       case 'money_market': return Icons.savings;
@@ -774,10 +954,10 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
 
   String _getInstrumentTypeHint(String type) {
     switch (type) {
-      case 'fund': return '如 110022（易方达蓝筹精选）';
-      case 'etf': return '如 510300（华泰柏瑞沪深300ETF）';
+      case 'fund': return '如 110022（易方达蓝筹精选）- 每日更新净值';
+      case 'etf': return '如 510300（沪深300ETF）- 实时交易价格';
       case 'stock': return '如 600519（贵州茅台）、AAPL';
-      case 'bond': return '如国债、企业债代码';
+      case 'bond': return '如国债，填写年化收益率';
       case 'money_market': return '如余额宝、零钱通';
       case 'cd': return '银行定期存款';
       case 'crypto': return '如 BTC、ETH';

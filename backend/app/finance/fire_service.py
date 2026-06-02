@@ -267,13 +267,19 @@ def run_monte_carlo(
 
     Uses normal distribution for annual returns.
     """
+    # 处理空值
+    net_worth = net_worth or 0
+    annual_savings = annual_savings or 0
+    fire_number = fire_number or 0
+
     if fire_number <= 0 or net_worth >= fire_number:
         return {
-            "success_rate": 1.0,
+            "success_rate": 1.0 if net_worth >= fire_number and fire_number > 0 else 0.0,
             "median_years": 0,
             "p10_years": 0,
             "p90_years": 0,
-            "paths": [],
+            "simulations": simulations,
+            "sample_paths": [],
         }
 
     years_to_fire = []
@@ -313,11 +319,21 @@ def run_monte_carlo(
 
 
 async def compute_passive_income(db: AsyncSession, family_id: str) -> dict[str, Any]:
-    """Compute passive income from investments."""
-    # Get financial assets that generate income
+    """Compute passive income from investments.
+
+    收入来源:
+    1. 有 expected_yield 的稳定资产（存款/国债/货币基金）: 使用该收益率计算
+    2. 有 annual_income 的资产: 直接使用该金额
+    3. 其他金融资产: 根据总收益和持仓时间计算年化收益
+    """
+    from app.assets.models import AssetMetadataFinancial
+    from datetime import datetime
+
+    # Get financial assets with metadata
     stmt = (
-        select(Asset, AssetFinancial)
+        select(Asset, AssetFinancial, AssetMetadataFinancial)
         .join(AssetFinancial, AssetFinancial.asset_id == Asset.id)
+        .outerjoin(AssetMetadataFinancial, AssetMetadataFinancial.asset_id == Asset.id)
         .where(
             Asset.family_id == family_id,
             Asset.status == "active",
@@ -329,21 +345,85 @@ async def compute_passive_income(db: AsyncSession, family_id: str) -> dict[str, 
 
     sources = []
     total_annual = 0
+    now = utcnow()
 
-    for asset, financial in rows:
-        # Estimate dividend/interest income
-        # This is simplified - real implementation would use actual dividend data
+    for asset, financial, metadata in rows:
         value = financial.current_value if financial else 0
-        if value > 0:
-            estimated_yield = 0.02  # Default 2% estimate
-            annual_income = value * estimated_yield
-            total_annual += annual_income
-            sources.append({
-                "asset_id": asset.id,
-                "asset_name": asset.name,
-                "value": value,
-                "estimated_annual_income": round(annual_income, 2),
-            })
+        cost = financial.purchase_price if financial else 0
+        purchase_date = financial.purchase_date if financial else None
+        
+        if value <= 0:
+            continue
+
+        # 确定收益金额和来源
+        annual_income = 0
+        income_source = None
+        yield_rate = None
+        holding_days = None
+        total_gain = None
+
+        # 判断是否为稳定资产（存款/国债/货币基金）
+        is_stable = metadata and metadata.instrument_type in ('cd', 'bond', 'money_market')
+        
+        if is_stable and metadata.expected_yield is not None and metadata.expected_yield > 0:
+            # 稳定资产使用用户设置的收益率
+            yield_rate = metadata.expected_yield
+            annual_income = value * (yield_rate / 100)
+            income_source = 'stable_yield'
+        elif metadata and metadata.annual_income is not None and metadata.annual_income > 0:
+            # 使用用户直接输入的年收益金额
+            annual_income = metadata.annual_income
+            income_source = 'manual'
+            yield_rate = round(annual_income / value * 100, 2) if value > 0 else 0
+        elif purchase_date and cost > 0:
+            # 其他资产：根据总收益和持仓时间计算年化收益
+            total_gain = value - cost
+            
+            # 计算持仓天数
+            if purchase_date.tzinfo:
+                purchase_date = purchase_date.replace(tzinfo=None)
+            holding_days = (now - purchase_date).days
+            
+            if holding_days > 30 and total_gain > 0:
+                # 年化收益 = 总收益 / 持仓年数
+                holding_years = holding_days / 365
+                annual_income = total_gain / holding_years
+                yield_rate = round(annual_income / cost * 100, 2) if cost > 0 else 0
+                income_source = 'calculated'
+            else:
+                # 持仓不足30天或亏损，不计算被动收入
+                annual_income = 0
+                income_source = 'insufficient'
+                yield_rate = 0
+        else:
+            # 无法计算
+            annual_income = 0
+            income_source = 'unknown'
+            yield_rate = 0
+
+        total_annual += annual_income
+
+        source_data = {
+            "asset_id": asset.id,
+            "asset_name": asset.name,
+            "instrument_type": metadata.instrument_type if metadata else None,
+            "value": value,
+            "cost": cost,
+            "yield_rate": yield_rate,
+            "income_source": income_source,
+            "estimated_annual_income": round(annual_income, 2),
+        }
+        
+        # 对于非稳定资产，添加额外信息
+        if income_source == 'calculated' and total_gain is not None and holding_days is not None:
+            source_data["total_gain"] = round(total_gain, 2)
+            source_data["holding_days"] = holding_days
+            source_data["holding_years"] = round(holding_days / 365, 2)
+        
+        sources.append(source_data)
+
+    # 按收入从高到低排序
+    sources.sort(key=lambda x: x['estimated_annual_income'], reverse=True)
 
     return {
         "total_annual": round(total_annual, 2),

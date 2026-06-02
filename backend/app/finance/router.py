@@ -315,7 +315,7 @@ async def lookup_instrument(
 ):
     """Lookup fund/stock info by ticker symbol.
 
-    instrument_type: fund (基金/ETF), stock (股票), crypto (加密货币)
+    instrument_type: fund (场外基金), etf (场内基金/ETF), stock (股票), crypto (加密货币)
     """
     from app.finance.providers.price_service import PriceProviderFactory
 
@@ -324,8 +324,10 @@ async def lookup_instrument(
 
     # Chinese stock codes: 6 digits starting with 6 (Shanghai) or 0/3 (Shenzhen)
     is_chinese_stock = len(ticker) == 6 and ticker.isdigit() and ticker[0] in ('6', '0', '3')
-    # Chinese fund codes: 6 digits starting with 1, 2, 5
-    is_chinese_fund = len(ticker) == 6 and ticker.isdigit() and ticker[0] in ('1', '2', '5')
+    # Chinese fund codes: 6 digits starting with 1, 2 (场外基金)
+    is_chinese_fund = len(ticker) == 6 and ticker.isdigit() and ticker[0] in ('1', '2')
+    # Chinese ETF codes: 6 digits starting with 5 (场内基金)
+    is_chinese_etf = len(ticker) == 6 and ticker.isdigit() and ticker[0] == '5'
 
     if instrument_type == "crypto":
         providers = ["coingecko"]
@@ -338,16 +340,17 @@ async def lookup_instrument(
             # 美股等国际股票：Alpha Vantage 优先，新浪美股兜底
             providers = ["alphavantage", "china_stock_us"]
             currency = "USD"
-    elif is_chinese_stock and instrument_type in ("etf", "fund"):
-        # 用户可能输入的是股票代码但选择了基金类型
+    elif instrument_type == "etf" or is_chinese_etf:
+        # 场内基金（ETF）使用股票API获取实时价格
         providers = ["china_stock"]
         currency = "CNY"
-    elif is_chinese_fund:
+    elif instrument_type == "fund" or is_chinese_fund:
+        # 场外基金获取最新净值
         providers = ["china_fund"]
         currency = "CNY"
-    else:  # fund/etf (international)
+    else:  # 国际基金/ETF
         providers = ["yahoo"]
-        currency = "CNY"
+        currency = "USD"
 
     result = await PriceProviderFactory.get_price_with_fallback(
         ticker, providers, currency
@@ -478,13 +481,22 @@ async def run_monte_carlo(
     nw = await compute_net_worth(db, family_id)
     summary = await compute_monthly_summary(db, family_id)
 
+    # 计算默认 FIRE 数字
+    annual_expense = summary.get("annual_expense", 0) or 0
+    default_fire_number = annual_expense / 0.04 if annual_expense > 0 else 0
+
+    # 获取用户输入或使用默认值
+    fire_number = data.get("fire_number") or default_fire_number
+    net_worth = nw.get("net_worth", 0) or 0
+    annual_savings = (summary.get("monthly_income", 0) or 0) * (summary.get("savings_rate", 0) or 0) * 12
+
     result = mc_sim(
-        net_worth=nw["net_worth"],
-        annual_savings=summary["monthly_income"] * summary["savings_rate"] * 12,
-        fire_number=data.get("fire_number", summary["annual_expense"] / 0.04),
-        expected_return=data.get("expected_return", 0.07),
-        volatility=data.get("volatility", 0.15),
-        simulations=data.get("simulations", 1000),
+        net_worth=net_worth,
+        annual_savings=annual_savings,
+        fire_number=fire_number,
+        expected_return=data.get("expected_return", 0.07) or 0.07,
+        volatility=data.get("volatility", 0.15) or 0.15,
+        simulations=data.get("simulations", 1000) or 1000,
     )
     return SuccessResponse(data=result)
 

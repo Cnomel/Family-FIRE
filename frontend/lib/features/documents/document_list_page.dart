@@ -152,26 +152,50 @@ class _DocumentListPageState extends ConsumerState<DocumentListPage> {
   }
 
   Widget _buildFolderTile(Map<String, dynamic> folder) {
-    return ListTile(
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: Colors.amber.withAlpha(30),
-          borderRadius: BorderRadius.circular(8),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: InkWell(
+        onTap: () => _navigateToFolder(folder['id'], folder['name']),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(80),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant.withAlpha(128),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.amber.withAlpha(30),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.folder, color: Colors.amber, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  folder['name'] ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+              ),
+              PopupMenuButton(
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(value: 'delete', child: Text('删除')),
+                ],
+                onSelected: (value) {
+                  if (value == 'delete') _deleteFolder(folder['id']);
+                },
+              ),
+            ],
+          ),
         ),
-        child: const Icon(Icons.folder, color: Colors.amber),
       ),
-      title: Text(folder['name'] ?? ''),
-      trailing: PopupMenuButton(
-        itemBuilder: (ctx) => [
-          const PopupMenuItem(value: 'delete', child: Text('删除')),
-        ],
-        onSelected: (value) {
-          if (value == 'delete') _deleteFolder(folder['id']);
-        },
-      ),
-      onTap: () => _navigateToFolder(folder['id'], folder['name']),
     );
   }
 
@@ -181,34 +205,69 @@ class _DocumentListPageState extends ConsumerState<DocumentListPage> {
     final fileSize = doc['file_size'] ?? 0;
     final createdAt = doc['created_at'] as String?;
 
-    return ListTile(
-      leading: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: _getDocTypeColor(docType).withAlpha(30),
-          borderRadius: BorderRadius.circular(8),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: InkWell(
+        onTap: () => _viewDocument(doc['id']),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(80),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(context).colorScheme.outlineVariant.withAlpha(128),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: _getDocTypeColor(docType).withAlpha(30),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(_getDocTypeIcon(docType), color: _getDocTypeColor(docType), size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${_getDocTypeLabel(docType)} · ${_formatFileSize(fileSize)}${createdAt != null ? ' · ${_formatDate(createdAt)}' : ''}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton(
+                itemBuilder: (ctx) => [
+                  const PopupMenuItem(value: 'download', child: Text('下载')),
+                  const PopupMenuItem(value: 'move', child: Text('移动')),
+                  const PopupMenuItem(value: 'delete', child: Text('删除')),
+                ],
+                onSelected: (value) {
+                  if (value == 'download') _downloadDocument(doc['id'], doc['name'] ?? doc['file_name'] ?? 'document');
+                  if (value == 'move') _showMoveDialog(doc['id']);
+                  if (value == 'delete') _deleteDocument(doc['id']);
+                },
+              ),
+            ],
+          ),
         ),
-        child: Icon(_getDocTypeIcon(docType), color: _getDocTypeColor(docType)),
       ),
-      title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        '${_getDocTypeLabel(docType)} · ${_formatFileSize(fileSize)}${createdAt != null ? ' · ${_formatDate(createdAt)}' : ''}',
-        style: const TextStyle(fontSize: 12),
-      ),
-      trailing: PopupMenuButton(
-        itemBuilder: (ctx) => [
-          const PopupMenuItem(value: 'download', child: Text('下载')),
-          const PopupMenuItem(value: 'move', child: Text('移动')),
-          const PopupMenuItem(value: 'delete', child: Text('删除')),
-        ],
-        onSelected: (value) {
-          if (value == 'download') _downloadDocument(doc['id'], doc['name'] ?? doc['file_name'] ?? 'document');
-          if (value == 'move') _showMoveDialog(doc['id']);
-          if (value == 'delete') _deleteDocument(doc['id']);
-        },
-      ),
-      onTap: () => _viewDocument(doc['id']),
     );
   }
 

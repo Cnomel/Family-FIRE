@@ -283,17 +283,14 @@ async def create_asset(
     await _verify_family_member(db, family_id, user_id)
 
     # For financial assets, try to find existing asset to merge
+    # 只有有 ticker 的金融资产（股票、基金、ETF）才合并，定期/国债等不合并
     if data.nature == "financial":
         existing_asset = None
         ticker = data.metadata.get("ticker") if data.metadata else None
 
-        # Try to find by ticker first
+        # 只有有 ticker 时才查找已有资产（股票/基金支持多次买入同一标的）
         if ticker:
             existing_asset = await _find_asset_by_ticker(db, family_id, ticker)
-
-        # If not found by ticker, try by name
-        if not existing_asset:
-            existing_asset = await _find_asset_by_name(db, family_id, data.name)
 
         if existing_asset:
             # Add transaction to existing asset
@@ -361,13 +358,19 @@ async def create_asset(
         if shares and shares > 0:
             # Calculate price per share
             price_per_share = data.purchase_price / shares if shares > 0 else 0
+            
+            # 移除时区信息，确保是 naive datetime
+            tx_date = data.purchase_date or utcnow()
+            if tx_date.tzinfo:
+                tx_date = tx_date.replace(tzinfo=None)
+            
             transaction = Transaction(
                 id=str(uuid.uuid4()),
                 asset_id=asset_id,
                 family_id=family_id,
                 created_by=user_id,
                 type="buy",
-                date=data.purchase_date or datetime.now(UTC),
+                date=tx_date,
                 quantity=shares,
                 price=price_per_share,
                 total=data.purchase_price,

@@ -189,22 +189,52 @@ class YahooFinanceProvider(PriceProvider):
 
 
 class ChinaFundProvider(PriceProvider):
-    """Provider for Chinese mutual funds using eastmoney API."""
+    """Provider for Chinese mutual funds using eastmoney API.
+
+    Supports:
+    - 场外基金 (open-end fund): 获取最新净值
+    - 场内基金 (ETF/LOF): 使用股票API获取实时价格
+    """
 
     async def get_price(self, symbol: str, currency: str = "CNY") -> dict[str, Any] | None:
+        # 场内基金（ETF/LOF）通常以 5 开头，使用股票API
+        if symbol.startswith('5'):
+            return await self._get_etf_price(symbol)
+
+        # 场外基金获取最新净值
+        return await self._get_fund_nav(symbol)
+
+    async def _get_etf_price(self, symbol: str) -> dict[str, Any] | None:
+        """获取场内基金（ETF）的实时价格，使用股票API。"""
+        provider = ChinaStockProvider()
+        return await provider.get_price(symbol)
+
+    async def _get_fund_nav(self, symbol: str) -> dict[str, Any] | None:
+        """获取场外基金的最新净值。"""
         try:
-            text = await asyncio.to_thread(self._fetch_fund, symbol)
+            # 先尝试获取最新净值
+            nav_data = await asyncio.to_thread(self._fetch_fund_nav, symbol)
+            if nav_data:
+                return nav_data
+
+            # 如果获取失败，尝试获取估值数据
+            return await self._get_fund_estimate(symbol)
+        except Exception as e:
+            logger.error("china_fund_error", symbol=symbol, error=str(e))
+            return None
+
+    async def _get_fund_estimate(self, symbol: str) -> dict[str, Any] | None:
+        """获取基金估值数据（盘中参考）。"""
+        try:
+            text = await asyncio.to_thread(self._fetch_fund_estimate, symbol)
 
             if not text:
                 return None
 
-            # Parse JSONP response: jsonpgz({"fundcode":"110022","name":"...",...})
             import json
-
             start = text.find("{")
             end = text.rfind("}") + 1
             if start < 0 or end <= 0:
-                logger.warning("china_fund_parse_error", symbol=symbol)
                 return None
 
             data = json.loads(text[start:end])
@@ -212,34 +242,95 @@ class ChinaFundProvider(PriceProvider):
             name = data.get("name", "")
 
             if not price:
-                logger.warning("china_fund_no_price", symbol=symbol)
                 return None
 
             return {
                 "price": price,
                 "currency": "CNY",
-                "source": "eastmoney",
+                "source": "eastmoney_estimate",
                 "name": name,
                 "timestamp": utcnow(),
+                "is_estimate": True,  # 标记为估值
             }
         except Exception as e:
-            logger.error("china_fund_error", symbol=symbol, error=str(e))
+            logger.error("china_fund_estimate_error", symbol=symbol, error=str(e))
             return None
 
     @staticmethod
-    def _fetch_fund(symbol: str) -> str | None:
-        """Fetch fund data from eastmoney using http.client."""
+    def _fetch_fund_estimate(symbol: str) -> str | None:
+        """获取基金估值数据。"""
         try:
             ctx = ssl._create_unverified_context()
             conn = http.client.HTTPSConnection("fundgz.1234567.com.cn", timeout=15, context=ctx)
             conn.request("GET", f"/js/{symbol}.js", headers={"Referer": "https://fund.eastmoney.com/"})
             resp = conn.getresponse()
             if resp.status != 200:
-                logger.warning("china_fund_no_data", symbol=symbol, status=resp.status)
                 return None
             return resp.read().decode("utf-8", errors="replace")
         except Exception as e:
-            logger.error("china_fund_fetch_error", symbol=symbol, error=str(e))
+            logger.error("china_fund_estimate_fetch_error", symbol=symbol, error=str(e))
+            return None
+        finally:
+            conn.close()
+
+    @staticmethod
+    def _fetch_fund_nav(symbol: str) -> dict[str, Any] | None:
+        """获取基金最新净值。"""
+        import json
+        try:
+            ctx = ssl._create_unverified_context()
+            # 使用东方财富的基金详情API获取最新净值
+            conn = http.client.HTTPSConnection("fund.eastmoney.com", timeout=15, context=ctx)
+            conn.request("GET", f"/pingzhongdata/{symbol}.js", headers={
+                "Referer": "https://fund.eastmoney.com/",
+                "User-Agent": "Mozilla/5.0"
+            })
+            resp = conn.getresponse()
+            if resp.status != 200:
+                return None
+
+            text = resp.read().decode("utf-8", errors="replace")
+
+            # 提取基金名称
+            name = ""
+            if 'fS_name = "' in text:
+                name_start = text.find('fS_name = "') + 11
+                name_end = text.find('"', name_start)
+                name = text[name_start:name_end]
+
+            # 提取最新净值（从 Data_netWorthTrend 中获取最后一个）
+            if 'Data_netWorthTrend' in text:
+                trend_start = text.find('Data_netWorthTrend') + len('Data_netWorthTrend') + 3
+                trend_end = text.find('];', trend_start) + 1
+                trend_text = text[trend_start:trend_end]
+
+                # 解析净值趋势数据
+                import re
+                # 查找所有净值数据点
+                matches = re.findall(r'\{"x":(\d+),"y":([\d.]+),"equityReturn"?:[\d.]*,"unitMoney"?:[\d.]*\}', trend_text)
+                if matches:
+                    # 获取最后一个数据点
+                    last_match = matches[-1]
+                    timestamp = int(last_match[0])
+                    nav = float(last_match[1])
+
+                    # 转换时间戳
+                    from datetime import datetime
+                    nav_date = datetime.fromtimestamp(timestamp / 1000)
+
+                    return {
+                        "price": nav,
+                        "currency": "CNY",
+                        "source": "eastmoney",
+                        "name": name,
+                        "timestamp": utcnow(),
+                        "nav_date": nav_date.strftime("%Y-%m-%d"),
+                        "is_estimate": False,
+                    }
+
+            return None
+        except Exception as e:
+            logger.error("china_fund_nav_fetch_error", symbol=symbol, error=str(e))
             return None
         finally:
             conn.close()
@@ -254,17 +345,19 @@ class ChinaFundProvider(PriceProvider):
 
 
 class ChinaStockProvider(PriceProvider):
-    """Provider for Chinese A-share stocks using Sina Finance API."""
+    """Provider for Chinese A-share stocks and ETFs using Sina Finance API.
+
+    自动处理交易所前缀：
+    - 6开头：上海股票 (sh)
+    - 0/3开头：深圳股票 (sz)
+    - 5开头：上海场内基金/ETF (sh)
+    - 1开头：深圳场内基金/ETF (sz)
+    """
 
     async def get_price(self, symbol: str, currency: str = "CNY") -> dict[str, Any] | None:
         try:
-            # Determine market prefix: sh for Shanghai, sz for Shenzhen
-            if symbol.startswith('6'):
-                code = f'sh{symbol}'
-            elif symbol.startswith(('0', '3')):
-                code = f'sz{symbol}'
-            else:
-                code = symbol
+            # 自动添加交易所前缀
+            code = self._add_market_prefix(symbol)
 
             text = await asyncio.to_thread(self._fetch_sina, code)
 
@@ -299,6 +392,30 @@ class ChinaStockProvider(PriceProvider):
         except Exception as e:
             logger.error("china_stock_error", symbol=symbol, error=str(e))
             return None
+
+    @staticmethod
+    def _add_market_prefix(symbol: str) -> str:
+        """自动添加交易所前缀。
+
+        规则：
+        - 已有前缀的直接返回
+        - 6开头：上海 (sh)
+        - 0/3开头：深圳 (sz)
+        - 5开头：上海场内基金 (sh)
+        - 1开头：深圳场内基金 (sz)
+        """
+        # 如果已经有前缀，直接返回
+        if symbol.startswith(('sh', 'sz')):
+            return symbol
+
+        # 根据代码首字母判断市场
+        if symbol.startswith('6') or symbol.startswith('5'):
+            return f'sh{symbol}'
+        elif symbol.startswith(('0', '3', '1')):
+            return f'sz{symbol}'
+        else:
+            # 默认上海
+            return f'sh{symbol}'
 
     @staticmethod
     def _fetch_sina(code: str) -> str | None:

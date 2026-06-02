@@ -118,31 +118,90 @@ class _LiabilityPageState extends ConsumerState<LiabilityPage> {
       'mortgage': '房贷', 'auto_loan': '车贷', 'credit_card': '信用卡',
       'consumer_loan': '消费贷', 'personal_loan': '个人借款',
     };
+    final typeIcons = {
+      'mortgage': Icons.home, 'auto_loan': Icons.directions_car, 'credit_card': Icons.credit_card,
+      'consumer_loan': Icons.shopping_cart, 'personal_loan': Icons.person,
+    };
+    final typeColors = {
+      'mortgage': const Color(0xFF1677FF), 'auto_loan': const Color(0xFF722ED1),
+      'credit_card': const Color(0xFFFA8C16), 'consumer_loan': const Color(0xFF13C2C2),
+      'personal_loan': const Color(0xFF52C41A),
+    };
+    final type = liability['type'] as String? ?? '';
+    final icon = typeIcons[type] ?? Icons.account_balance;
+    final color = typeColors[type] ?? Colors.grey;
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        title: Text(liability['name'] ?? ''),
-        subtitle: Text(typeLabels[liability['type']] ?? liability['type'] ?? ''),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              formatCurrency(toDouble(liability['current_balance'])),
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
-            ),
-            PopupMenuButton(
-              itemBuilder: (context) => [
-                const PopupMenuItem(value: 'edit', child: Text('编辑')),
-                const PopupMenuItem(value: 'delete', child: Text('删除')),
-              ],
-              onSelected: (value) {
-                if (value == 'delete') _deleteLiability(liability['id']);
-                if (value == 'edit') _showEditDialog(liability);
-              },
-            ),
-          ],
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(80),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outlineVariant.withAlpha(128),
         ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: color.withAlpha(30),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  liability['name'] ?? '',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  typeLabels[type] ?? type,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                formatCurrency(toDouble(liability['current_balance'])),
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+              ),
+              if (liability['monthly_payment'] != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  '月供 ${formatCurrency(toDouble(liability['monthly_payment']))}',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          PopupMenuButton(
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'edit', child: Text('编辑')),
+              const PopupMenuItem(value: 'delete', child: Text('删除')),
+            ],
+            onSelected: (value) {
+              if (value == 'delete') _deleteLiability(liability['id']);
+              if (value == 'edit') _showEditDialog(liability);
+            },
+          ),
+        ],
       ),
     );
   }
