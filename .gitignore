@@ -62,6 +62,18 @@ mobile/android/app/build/
 mobile/ios/Pods/
 mobile/ios/.symlinks/
 mobile/.idea/
+frontend/.dart_tool/
+frontend/.packages
+frontend/build/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.metadata
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/.idea/
+frontend/lib/config/env.dart
 
 # MinIO data
 minio_data/
