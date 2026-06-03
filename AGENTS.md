@@ -141,12 +141,16 @@ uv run python scripts/init_db.py
 ### Q: 如何初始化收支模板？
 ```bash
 cd backend
-# 初始化数据库（包含新表）
+# 初始化数据库（包含所有种子数据）
 uv run python scripts/init_db.py
-
-# 为现有家庭创建系统预设收支模板
-uv run python scripts/seed_budget_templates.py
 ```
+
+初始化脚本包含：
+- 系统设置
+- 支出/收入分类（支付宝/随手记标准）
+- 资产分类（家庭级别）
+- 固定支出/收入模板（家庭级别）
+- 管理员用户
 
 ### Q: Android 设备无法联网/请求发不出去？
 
