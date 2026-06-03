@@ -121,6 +121,32 @@ family-fire/
 - 👤 用户名+邮箱双登录
 - 🔒 隐私模式（默认隐藏金额）
 
+### APP配置
+
+构建APK前，需要配置后端API地址。编辑 `frontend/lib/config/env.dart`：
+
+```dart
+class EnvConfig {
+  // 生产环境：填入你的域名或IP
+  static const String apiBaseUrl = 'http://your-domain.com';
+  static const String wsUrl = 'ws://your-domain.com';
+}
+```
+
+| 场景 | apiBaseUrl |
+|------|------------|
+| 生产环境 | `http://your-domain.com` |
+| Android模拟器 | `http://10.0.2.2:8000` |
+| iOS模拟器 | `http://localhost:8000` |
+| 真机调试 | `http://<电脑IP>:8000` |
+
+构建APK：
+
+```bash
+cd frontend
+flutter build apk --release
+```
+
 ### 部署指南
 
 详细部署文档请参考 [DEPLOY.md](DEPLOY.md)

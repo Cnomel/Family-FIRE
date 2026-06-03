@@ -133,6 +133,40 @@ docker cp family-fire-minio:/data ./minio_backup_$(date +%Y%m%d)
 
 ## 常见问题
 
+### Q: APP显示"网络连接失败"怎么办？
+
+1. **检查API地址配置**
+
+   编辑 `frontend/lib/config/env.dart`，配置正确的服务器地址：
+
+   ```dart
+   class EnvConfig {
+     // 生产环境：填入你的域名
+     static const String apiBaseUrl = 'http://your-domain.com';
+     static const String wsUrl = 'ws://your-domain.com';
+   }
+   ```
+
+   | 环境 | apiBaseUrl |
+   |------|------------|
+   | 生产环境 | `http://your-domain.com` |
+   | Android模拟器 | `http://10.0.2.2:8000` |
+   | iOS模拟器 | `http://localhost:8000` |
+   | 真机调试 | `http://<电脑IP>:8000` |
+
+2. **重新构建APK**
+
+   ```bash
+   cd frontend
+   flutter build apk --release
+   ```
+
+3. **确认服务器API可访问**
+
+   ```bash
+   curl http://your-domain.com/health
+   ```
+
 ### Q: 如何修改管理员密码？
 
 登录后在设置页面修改，或直接在数据库中更新。
@@ -149,7 +183,7 @@ git pull
 
 ### Q: 如何查看API文档？
 
-访问 `http://<服务器地址>:8000/docs`
+访问 `http://<服务器地址>/docs`
 
 ### Q: 如何添加HTTPS？
 
