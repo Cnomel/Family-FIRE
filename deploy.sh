@@ -133,7 +133,13 @@ configure_deployment() {
                 exit 1
             fi
             SERVER_HOST="$DOMAIN"
-            USE_SSL=true
+            echo ""
+            read -p "  是否配置SSL证书? (y/N): " ssl_choice
+            if [ "$ssl_choice" = "y" ] || [ "$ssl_choice" = "Y" ]; then
+                USE_SSL=true
+            else
+                USE_SSL=false
+            fi
             ;;
         *)
             print_error "无效选择"
