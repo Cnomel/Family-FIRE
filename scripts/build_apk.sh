@@ -73,7 +73,7 @@ configure_api() {
     
     echo ""
     echo -e "  请输入后端API地址:"
-    echo -e "  (例如: http://family.cnomel.cn 或 https://api.example.com)"
+    echo -e "  (例如: http://your-domain.com 或 https://api.example.com)"
     echo ""
     read -p "  API地址: " API_URL
     
