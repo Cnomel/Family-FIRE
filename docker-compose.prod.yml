@@ -125,7 +125,7 @@ services:
     volumes:
       - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro
-      - downloads_data:/usr/share/nginx/html/downloads:ro
+      - ./downloads:/usr/share/nginx/html/downloads:ro
     depends_on:
       - backend
 
@@ -133,4 +133,3 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
-  downloads_data:
