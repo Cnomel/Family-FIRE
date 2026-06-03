@@ -690,6 +690,23 @@ class AppLocalizationsZh extends AppLocalizations {
   String get confirmLogoutMessage => '确认退出登录？';
 
   @override
+  String get loginFailed => '登录失败';
+
+  @override
+  String get invalidCredentials => '用户名或密码错误';
+
+  @override
+  String accountLocked(Object minutes) {
+    return '账号已锁定，请$minutes分钟后重试';
+  }
+
+  @override
+  String get accountDisabled => '账号已被禁用';
+
+  @override
+  String get tooManyAttempts => '登录尝试次数过多，请稍后重试';
+
+  @override
   String get hideAmountDisplay => '隐藏金额显示';
 
   @override

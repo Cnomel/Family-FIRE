@@ -1460,6 +1460,36 @@ abstract class AppLocalizations {
   /// **'确认退出登录？'**
   String get confirmLogoutMessage;
 
+  /// No description provided for @loginFailed.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录失败'**
+  String get loginFailed;
+
+  /// No description provided for @invalidCredentials.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户名或密码错误'**
+  String get invalidCredentials;
+
+  /// No description provided for @accountLocked.
+  ///
+  /// In zh, this message translates to:
+  /// **'账号已锁定，请{minutes}分钟后重试'**
+  String accountLocked(Object minutes);
+
+  /// No description provided for @accountDisabled.
+  ///
+  /// In zh, this message translates to:
+  /// **'账号已被禁用'**
+  String get accountDisabled;
+
+  /// No description provided for @tooManyAttempts.
+  ///
+  /// In zh, this message translates to:
+  /// **'登录尝试次数过多，请稍后重试'**
+  String get tooManyAttempts;
+
   /// No description provided for @hideAmountDisplay.
   ///
   /// In zh, this message translates to:

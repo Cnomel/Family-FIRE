@@ -161,10 +161,26 @@ class _RefreshInterceptor extends Interceptor {
   bool _isRefreshing = false;
   final List<Completer<void>> _refreshCompleters = [];
 
+  // 不需要刷新token的路径
+  static const _excludedPaths = [
+    '/api/auth/login',
+    '/api/auth/register',
+    '/api/auth/refresh',
+    '/api/auth/password/forgot',
+    '/api/auth/password/reset',
+  ];
+
   _RefreshInterceptor(this._dio, this._ref);
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
+    // 排除登录等不需要token的请求
+    final path = err.requestOptions.path;
+    if (_excludedPaths.any((p) => path.contains(p))) {
+      handler.next(err);
+      return;
+    }
+
     if (err.response?.statusCode == 401) {
       if (_isRefreshing) {
         // 已经在刷新中，等待刷新完成

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../config/i18n/app_localizations.dart';
 import '../../core/auth/auth_state.dart';
 import '../../core/api/api_exception.dart';
 
@@ -27,6 +28,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     super.dispose();
   }
 
+  String _getLocalizedError(AppLocalizations l10n, ApiException e) {
+    switch (e.code) {
+      case 'AUTHENTICATION_ERROR':
+        return l10n.invalidCredentials;
+      case 'ACCOUNT_LOCKED':
+        // 从 details 中获取锁定分钟数
+        final minutes = e.details?['lockout_minutes'] ?? 30;
+        return l10n.accountLocked(minutes.toString());
+      case 'ACCOUNT_DISABLED':
+        return l10n.accountDisabled;
+      case 'NETWORK_UNREACHABLE':
+      case 'NETWORK_ERROR':
+        return l10n.networkError;
+      default:
+        return e.message;
+    }
+  }
+
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -43,9 +62,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       // 登录成功，跳转首页
       if (mounted) context.go('/');
     } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (mounted) {
+        final l10n = AppLocalizations.of(context);
+        setState(() => _error = _getLocalizedError(l10n, e));
+      }
     } catch (e) {
-      if (mounted) setState(() => _error = '登录失败，请重试');
+      if (mounted) {
+        final l10n = AppLocalizations.of(context);
+        setState(() => _error = l10n.loginFailed);
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -53,6 +78,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -72,7 +99,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Family Fire',
+                    l10n.appTitle,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                           fontWeight: FontWeight.bold,
@@ -80,7 +107,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '家庭资产管理系统',
+                    l10n.login,
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -110,14 +137,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   // Identifier field
                   TextFormField(
                     controller: _identifierController,
-                    decoration: const InputDecoration(
-                      labelText: '用户名/邮箱',
-                      prefixIcon: Icon(Icons.person_outline),
+                    decoration: InputDecoration(
+                      labelText: l10n.usernameOrEmail,
+                      prefixIcon: const Icon(Icons.person_outline),
                     ),
                     keyboardType: TextInputType.text,
                     textInputAction: TextInputAction.next,
                     validator: (v) {
-                      if (v == null || v.trim().isEmpty) return '请输入用户名或邮箱';
+                      if (v == null || v.trim().isEmpty) return l10n.usernameOrEmail;
                       return null;
                     },
                   ),
@@ -127,7 +154,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   TextFormField(
                     controller: _passwordController,
                     decoration: InputDecoration(
-                      labelText: '密码',
+                      labelText: l10n.password,
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
                         icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
@@ -138,7 +165,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     textInputAction: TextInputAction.done,
                     onFieldSubmitted: (_) => _login(),
                     validator: (v) {
-                      if (v == null || v.isEmpty) return '请输入密码';
+                      if (v == null || v.isEmpty) return l10n.password;
                       return null;
                     },
                   ),
@@ -149,7 +176,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () => context.push('/forgot-password'),
-                      child: const Text('忘记密码？'),
+                      child: Text(l10n.forgotPasswordLink),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -163,7 +190,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             width: 20,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('登录'),
+                        : Text(l10n.loginButton),
                   ),
                   const SizedBox(height: 16),
 
@@ -171,10 +198,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text('没有账号？'),
+                      Text(l10n.noAccount),
                       TextButton(
                         onPressed: () => context.push('/register'),
-                        child: const Text('注册'),
+                        child: Text(l10n.registerButton),
                       ),
                     ],
                   ),

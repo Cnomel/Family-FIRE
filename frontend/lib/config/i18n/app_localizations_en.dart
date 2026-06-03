@@ -690,6 +690,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get confirmLogoutMessage => 'Are you sure you want to logout?';
 
   @override
+  String get loginFailed => 'Login Failed';
+
+  @override
+  String get invalidCredentials => 'Invalid username or password';
+
+  @override
+  String accountLocked(Object minutes) {
+    return 'Account locked, please try again in $minutes minutes';
+  }
+
+  @override
+  String get accountDisabled => 'Account has been disabled';
+
+  @override
+  String get tooManyAttempts =>
+      'Too many login attempts, please try again later';
+
+  @override
   String get hideAmountDisplay => 'Hide amount display';
 
   @override
