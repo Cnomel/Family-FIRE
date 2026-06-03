@@ -176,3 +176,43 @@ uv run python scripts/seed_budget_templates.py
 1. 后端健康检查端点是 `/health`（不是 `/api/health`）
 2. `frontend/lib/core/network/network_service.dart` 中的检查路径必须匹配
 3. 网络检查失败会阻止所有 API 请求
+
+---
+
+## 安全问题记录
+
+> 审查日期: 2026-06-03
+
+### 严重风险（P0）
+
+| # | 风险 | 文件 | 描述 |
+|---|------|------|------|
+| 1 | JWT Secret 硬编码默认值 | `backend/app/config.py` | 生产环境如未更改，所有 Token 可被伪造 |
+| 2 | SSL 默认关闭 | `nginx/nginx.prod.conf` | 公网部署时所有通信明文传输 |
+| 3 | Token 黑名单未实现 | `backend/app/auth/router.py` | 登出后 Token 仍有效，需用 Redis 实现 |
+| 4 | SSL 证书验证禁用 | `backend/app/finance/providers/price_service.py` | `ssl._create_unverified_context()` 易受 MITM 攻击 |
+
+### 高风险（P1）
+
+| # | 风险 | 描述 |
+|---|------|------|
+| 5 | 内存速率限制不支持多实例 | 生产环境多 worker 下形同虚设，需基于 Redis 实现 |
+| 6 | 缺少用户账号删除功能 | 不符合隐私保护最佳实践 |
+| 7 | Refresh Token 无失效机制 | 被泄露后可持续使用 |
+
+### 中风险（P2）
+
+| # | 风险 | 描述 |
+|---|------|------|
+| 8 | CORS 完全开放 | 生产环境应限制 `allow_origins` 来源 |
+| 9 | API 文档生产环境可访问 | `/docs`、`/redoc` 暴露系统结构 |
+| 10 | 缺少 CSP Header | XSS 防护不完整 |
+| 11 | 家庭成员无细分权限 | 任何成员可操作所有文档 |
+| 12 | MinIO 默认关闭 HTTPS | 文件传输明文 |
+
+### 待实现功能
+
+- [ ] 用户账号删除端点
+- [ ] 用户数据导出功能
+- [ ] 隐私政策/用户协议页面
+- [ ] 审计日志（敏感操作记录）
