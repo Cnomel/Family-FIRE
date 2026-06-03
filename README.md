@@ -177,6 +177,46 @@ docker compose -f docker-compose.prod.yml down
 docker compose -f docker-compose.prod.yml restart
 ```
 
+### 数据备份与恢复
+
+#### 手动备份
+
+```bash
+./scripts/backup.sh
+```
+
+备份内容：
+- PostgreSQL 数据库（dump + SQL 格式）
+- MinIO 文件数据
+- 配置文件（.env.prod、docker-compose、nginx）
+
+备份文件存储在 `backups/` 目录，自动压缩为 `.tar.gz`，自动清理 30 天前的旧备份。
+
+#### 数据恢复
+
+```bash
+./scripts/restore.sh
+```
+
+- 列出所有可用备份
+- 交互式选择要恢复的备份
+- 恢复前确认提示
+- 自动停止/重启相关服务
+
+#### 配置定时备份
+
+```bash
+./scripts/setup_backup.sh
+```
+
+可选频率：
+- 每天凌晨 2 点（推荐）
+- 每天凌晨 3 点
+- 每周日凌晨 2 点
+- 自定义 cron 表达式
+
+查看定时任务：`crontab -l`
+
 ### 贡献
 
 欢迎贡献！请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
@@ -287,6 +327,46 @@ docker compose -f docker-compose.prod.yml down
 # Restart services
 docker compose -f docker-compose.prod.yml restart
 ```
+
+### Backup & Restore
+
+#### Manual Backup
+
+```bash
+./scripts/backup.sh
+```
+
+Backup contents:
+- PostgreSQL database (dump + SQL format)
+- MinIO file data
+- Configuration files (.env.prod, docker-compose, nginx)
+
+Backup files are stored in `backups/` directory, automatically compressed as `.tar.gz`, and auto-clean backups older than 30 days.
+
+#### Restore
+
+```bash
+./scripts/restore.sh
+```
+
+- List all available backups
+- Interactive selection of backup to restore
+- Confirmation before restore
+- Auto stop/restart related services
+
+#### Scheduled Backup
+
+```bash
+./scripts/setup_backup.sh
+```
+
+Options:
+- Daily at 2 AM (Recommended)
+- Daily at 3 AM
+- Weekly on Sunday at 2 AM
+- Custom cron expression
+
+View scheduled tasks: `crontab -l`
 
 ### Contributing
 
