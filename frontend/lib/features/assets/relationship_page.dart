@@ -48,7 +48,7 @@ class _RelationshipPageState extends ConsumerState<RelationshipPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('关系图'),
+        title: const Text('资产关系图'),
         actions: [
           IconButton(
             icon: const Icon(Icons.list),
@@ -71,7 +71,6 @@ class _RelationshipPageState extends ConsumerState<RelationshipPage> {
     final allNodes = _graphData?['nodes'] as List<dynamic>? ?? [];
     final allEdges = _graphData?['edges'] as List<dynamic>? ?? [];
 
-    // 只保留与当前资产相关的节点
     final relatedNodeIds = <String>{widget.assetId};
     for (final edge in allEdges) {
       if (edge['source'] == widget.assetId) relatedNodeIds.add(edge['target'] as String);
@@ -84,39 +83,119 @@ class _RelationshipPageState extends ConsumerState<RelationshipPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (ctx) => DraggableScrollableSheet(
         initialChildSize: 0.6,
         maxChildSize: 0.9,
         minChildSize: 0.3,
         expand: false,
-        builder: (ctx, controller) => Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text('所有资产 (${nodes.length})', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            Expanded(
-              child: ListView.builder(
-                controller: controller,
-                itemCount: nodes.length,
-                itemBuilder: (_, index) {
-                  final node = nodes[index];
-                  final isCurrent = node['id'] == widget.assetId;
-                  return ListTile(
-                    leading: Icon(_getNatureIcon(node['nature']), color: isCurrent ? Theme.of(context).colorScheme.primary : null),
-                    title: Text(node['name'] ?? '', style: TextStyle(fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal)),
-                    subtitle: Text(_getNatureLabel(node['nature'])),
-                    trailing: isCurrent ? const Chip(label: Text('当前', style: TextStyle(fontSize: 11))) : const Icon(Icons.chevron_right),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      if (!isCurrent) context.push('/assets/${node['id']}');
-                    },
-                  );
-                },
+        builder: (ctx, controller) => Container(
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // 拖拽指示器
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Icon(Icons.account_tree, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      '关联资产 (${nodes.length})',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  controller: controller,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: nodes.length,
+                  itemBuilder: (_, index) {
+                    final node = nodes[index];
+                    final isCurrent = node['id'] == widget.assetId;
+                    return _buildListItem(node, isCurrent, ctx);
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildListItem(Map<String, dynamic> node, bool isCurrent, BuildContext ctx) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: isCurrent
+            ? Theme.of(context).colorScheme.primaryContainer.withAlpha(100)
+            : Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(80),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isCurrent
+              ? Theme.of(context).colorScheme.primary.withAlpha(100)
+              : Theme.of(context).colorScheme.outlineVariant.withAlpha(128),
+        ),
+      ),
+      child: ListTile(
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: isCurrent
+                ? Theme.of(context).colorScheme.primary
+                : _getNatureColor(node['nature']).withAlpha(30),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(
+            _getNatureIcon(node['nature']),
+            color: isCurrent ? Colors.white : _getNatureColor(node['nature']),
+            size: 20,
+          ),
+        ),
+        title: Text(
+          node['name'] ?? '',
+          style: TextStyle(
+            fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
+        subtitle: Text(
+          _getNatureLabel(node['nature']),
+          style: TextStyle(
+            fontSize: 12,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        trailing: isCurrent
+            ? Chip(
+                label: const Text('当前', style: TextStyle(fontSize: 11)),
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                labelStyle: const TextStyle(color: Colors.white),
+                visualDensity: VisualDensity.compact,
+              )
+            : Icon(
+                Icons.chevron_right,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        onTap: () {
+          Navigator.pop(ctx);
+          if (!isCurrent) context.push('/assets/${node['id']}');
+        },
       ),
     );
   }
@@ -132,7 +211,10 @@ class _RelationshipPageState extends ConsumerState<RelationshipPage> {
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: () {
-              setState(() { _isLoading = true; _error = null; });
+              setState(() {
+                _isLoading = true;
+                _error = null;
+              });
               _loadData();
             },
             child: const Text('重试'),
@@ -143,15 +225,37 @@ class _RelationshipPageState extends ConsumerState<RelationshipPage> {
   }
 
   Widget _buildEmptyView() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.account_tree_outlined, size: 64, color: Colors.grey),
-          SizedBox(height: 16),
-          Text('暂无关系数据', style: TextStyle(color: Colors.grey, fontSize: 16)),
-          SizedBox(height: 8),
-          Text('在资产详情页点击 + 按钮创建资产关系', style: TextStyle(color: Colors.grey, fontSize: 12)),
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer.withAlpha(80),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(
+              Icons.account_tree_outlined,
+              size: 40,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Text(
+            '暂无关系数据',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '在资产详情页点击 + 按钮\n创建资产关系',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 14,
+            ),
+          ),
         ],
       ),
     );
@@ -163,7 +267,6 @@ class _RelationshipPageState extends ConsumerState<RelationshipPage> {
 
     if (allNodes.isEmpty) return _buildEmptyView();
 
-    // 只保留与当前资产相关的节点和边
     final relatedNodeIds = <String>{widget.assetId};
     for (final edge in allEdges) {
       if (edge['source'] == widget.assetId) relatedNodeIds.add(edge['target'] as String);
@@ -171,9 +274,9 @@ class _RelationshipPageState extends ConsumerState<RelationshipPage> {
     }
 
     final nodes = allNodes.where((n) => relatedNodeIds.contains(n['id'])).toList();
-    final edges = allEdges.where((e) =>
-      relatedNodeIds.contains(e['source']) && relatedNodeIds.contains(e['target'])
-    ).toList();
+    final edges = allEdges
+        .where((e) => relatedNodeIds.contains(e['source']) && relatedNodeIds.contains(e['target']))
+        .toList();
 
     if (nodes.isEmpty) return _buildEmptyView();
 
@@ -189,8 +292,8 @@ class _RelationshipPageState extends ConsumerState<RelationshipPage> {
             edges: edges,
             currentAssetId: widget.assetId,
             canvasSize: Size(
-              max(constraints.maxWidth, nodes.length * 120.0),
-              max(constraints.maxHeight, nodes.length * 100.0),
+              max(constraints.maxWidth, nodes.length * 150.0),
+              max(constraints.maxHeight, nodes.length * 120.0),
             ),
             onNodeTap: (assetId) => context.push('/assets/$assetId'),
           ),
@@ -201,23 +304,52 @@ class _RelationshipPageState extends ConsumerState<RelationshipPage> {
 
   IconData _getNatureIcon(String? nature) {
     switch (nature) {
-      case 'tangible': return Icons.home;
-      case 'digital': return Icons.computer;
-      case 'financial': return Icons.account_balance;
-      case 'intangible': return Icons.description;
-      case 'service': return Icons.cloud;
-      default: return Icons.category;
+      case 'tangible':
+        return Icons.home;
+      case 'digital':
+        return Icons.computer;
+      case 'financial':
+        return Icons.account_balance;
+      case 'intangible':
+        return Icons.description;
+      case 'service':
+        return Icons.cloud;
+      default:
+        return Icons.category;
+    }
+  }
+
+  Color _getNatureColor(String? nature) {
+    switch (nature) {
+      case 'tangible':
+        return Colors.blue;
+      case 'digital':
+        return Colors.purple;
+      case 'financial':
+        return Colors.green;
+      case 'intangible':
+        return Colors.grey;
+      case 'service':
+        return Colors.orange;
+      default:
+        return Colors.grey;
     }
   }
 
   String _getNatureLabel(String? nature) {
     switch (nature) {
-      case 'tangible': return '实物资产';
-      case 'digital': return '数字资产';
-      case 'financial': return '金融资产';
-      case 'intangible': return '无形资产';
-      case 'service': return '服务';
-      default: return '';
+      case 'tangible':
+        return '有形资产';
+      case 'digital':
+        return '数字资产';
+      case 'financial':
+        return '金融资产';
+      case 'intangible':
+        return '无形资产';
+      case 'service':
+        return '服务';
+      default:
+        return '';
     }
   }
 }
@@ -246,12 +378,18 @@ class _GraphCanvas extends StatelessWidget {
       height: canvasSize.height,
       child: Stack(
         children: [
+          // 背景装饰
+          CustomPaint(
+            size: canvasSize,
+            painter: _BackgroundPainter(),
+          ),
           // 绘制边
           CustomPaint(
             size: canvasSize,
             painter: _EdgePainter(
               edges: edges,
               positions: positions,
+              context: context,
             ),
           ),
           // 绘制节点
@@ -261,8 +399,8 @@ class _GraphCanvas extends StatelessWidget {
             final isCurrent = id == currentAssetId;
 
             return Positioned(
-              left: pos.dx - 55,
-              top: pos.dy - 35,
+              left: pos.dx - 60,
+              top: pos.dy - 40,
               child: GestureDetector(
                 onTap: () => onNodeTap(id),
                 child: _NodeWidget(
@@ -284,19 +422,6 @@ class _GraphCanvas extends StatelessWidget {
 
     if (nodeCount == 0) return positions;
 
-    // 计算每个节点的连接数
-    final connectionCount = <String, int>{};
-    for (final node in nodes) {
-      connectionCount[node['id'] as String] = 0;
-    }
-    for (final edge in edges) {
-      final source = edge['source'] as String?;
-      final target = edge['target'] as String?;
-      if (source != null) connectionCount[source] = (connectionCount[source] ?? 0) + 1;
-      if (target != null) connectionCount[target] = (connectionCount[target] ?? 0) + 1;
-    }
-
-    // 布局：当前节点在中心，直接关联的节点在第一圈，其他在第二圈
     final centerX = canvasSize.width / 2;
     final centerY = canvasSize.height / 2;
 
@@ -312,7 +437,7 @@ class _GraphCanvas extends StatelessWidget {
 
     // 放置直接关联节点（内圈）
     final innerNodes = nodes.where((n) => directNeighbors.contains(n['id'])).toList();
-    final innerRadius = 150.0;
+    final innerRadius = 160.0;
     for (int i = 0; i < innerNodes.length; i++) {
       final angle = (2 * pi * i / innerNodes.length) - pi / 2;
       positions[innerNodes[i]['id'] as String] = Offset(
@@ -322,8 +447,10 @@ class _GraphCanvas extends StatelessWidget {
     }
 
     // 放置其他节点（外圈）
-    final outerNodes = nodes.where((n) => n['id'] != currentAssetId && !directNeighbors.contains(n['id'])).toList();
-    final outerRadius = 300.0;
+    final outerNodes = nodes
+        .where((n) => n['id'] != currentAssetId && !directNeighbors.contains(n['id']))
+        .toList();
+    final outerRadius = 320.0;
     for (int i = 0; i < outerNodes.length; i++) {
       final angle = (2 * pi * i / outerNodes.length) - pi / 2;
       positions[outerNodes[i]['id'] as String] = Offset(
@@ -336,17 +463,44 @@ class _GraphCanvas extends StatelessWidget {
   }
 }
 
+class _BackgroundPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 绘制装饰性圆圈
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.5;
+
+    final center = Offset(size.width / 2, size.height / 2);
+
+    // 内圈
+    paint.color = Colors.grey.shade200;
+    canvas.drawCircle(center, 160, paint);
+
+    // 外圈
+    paint.color = Colors.grey.shade100;
+    canvas.drawCircle(center, 320, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 class _EdgePainter extends CustomPainter {
   final List<dynamic> edges;
   final Map<String, Offset> positions;
+  final BuildContext context;
 
-  _EdgePainter({required this.edges, required this.positions});
+  _EdgePainter({
+    required this.edges,
+    required this.positions,
+    required this.context,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.grey.shade400
-      ..strokeWidth = 1.5
+      ..strokeWidth = 2.0
       ..style = PaintingStyle.stroke;
 
     for (final edge in edges) {
@@ -354,30 +508,68 @@ class _EdgePainter extends CustomPainter {
       final targetPos = positions[edge['target']];
       if (sourcePos == null || targetPos == null) continue;
 
-      canvas.drawLine(sourcePos, targetPos, paint);
-
-      // 绘制箭头
+      // 计算控制点（曲线）
+      final midX = (sourcePos.dx + targetPos.dx) / 2;
+      final midY = (sourcePos.dy + targetPos.dy) / 2;
       final dx = targetPos.dx - sourcePos.dx;
       final dy = targetPos.dy - sourcePos.dy;
-      final length = sqrt(dx * dx + dy * dy);
-      if (length < 1) continue;
+      final controlPoint = Offset(midX - dy * 0.2, midY + dx * 0.2);
 
-      final ux = dx / length;
-      final uy = dy / length;
-
-      // 箭头位置（目标节点边缘）
-      final arrowX = targetPos.dx - ux * 40;
-      final arrowY = targetPos.dy - uy * 40;
-
+      // 绘制渐变曲线
       final path = Path()
-        ..moveTo(arrowX, arrowY)
-        ..lineTo(arrowX - ux * 10 - uy * 5, arrowY - uy * 10 + ux * 5)
-        ..lineTo(arrowX - ux * 10 + uy * 5, arrowY - uy * 10 - ux * 5)
+        ..moveTo(sourcePos.dx, sourcePos.dy)
+        ..quadraticBezierTo(controlPoint.dx, controlPoint.dy, targetPos.dx, targetPos.dy);
+
+      // 渐变色
+      final gradient = LinearGradient(
+        colors: [
+          Theme.of(context).colorScheme.primary.withAlpha(150),
+          Theme.of(context).colorScheme.primary.withAlpha(50),
+        ],
+      );
+
+      paint.shader = gradient.createShader(
+        Rect.fromPoints(sourcePos, targetPos),
+      );
+
+      canvas.drawPath(path, paint);
+
+      // 绘制箭头
+      final arrowPos = _getPointOnQuadraticBezier(
+        sourcePos,
+        controlPoint,
+        targetPos,
+        0.85,
+      );
+      final arrowAngle = atan2(
+        targetPos.dy - arrowPos.dy,
+        targetPos.dx - arrowPos.dx,
+      );
+
+      final arrowPath = Path()
+        ..moveTo(arrowPos.dx, arrowPos.dy)
+        ..lineTo(
+          arrowPos.dx - 12 * cos(arrowAngle - 0.4),
+          arrowPos.dy - 12 * sin(arrowAngle - 0.4),
+        )
+        ..lineTo(
+          arrowPos.dx - 12 * cos(arrowAngle + 0.4),
+          arrowPos.dy - 12 * sin(arrowAngle + 0.4),
+        )
         ..close();
 
-      canvas.drawPath(path, paint..style = PaintingStyle.fill);
+      paint.shader = null;
+      paint.style = PaintingStyle.fill;
+      paint.color = Theme.of(context).colorScheme.primary.withAlpha(150);
+      canvas.drawPath(arrowPath, paint);
       paint.style = PaintingStyle.stroke;
     }
+  }
+
+  Offset _getPointOnQuadraticBezier(Offset p0, Offset p1, Offset p2, double t) {
+    final x = (1 - t) * (1 - t) * p0.dx + 2 * (1 - t) * t * p1.dx + t * t * p2.dx;
+    final y = (1 - t) * (1 - t) * p0.dy + 2 * (1 - t) * t * p1.dy + t * t * p2.dy;
+    return Offset(x, y);
   }
 
   @override
@@ -398,34 +590,56 @@ class _NodeWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 110,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      width: 120,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
-        color: isCurrent
-            ? Theme.of(context).colorScheme.primary
-            : Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
+        gradient: isCurrent
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Theme.of(context).colorScheme.primary,
+                  Theme.of(context).colorScheme.primary.withAlpha(200),
+                ],
+              )
+            : null,
+        color: isCurrent ? null : Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isCurrent ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
-          width: isCurrent ? 2 : 1,
+          color: isCurrent
+              ? Theme.of(context).colorScheme.primary
+              : _getNatureColor(nature).withAlpha(100),
+          width: isCurrent ? 2 : 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(isCurrent ? 40 : 15),
-            blurRadius: isCurrent ? 8 : 4,
-            offset: const Offset(0, 2),
+            color: isCurrent
+                ? Theme.of(context).colorScheme.primary.withAlpha(50)
+                : Colors.black.withAlpha(15),
+            blurRadius: isCurrent ? 12 : 6,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            _getNatureIcon(nature),
-            color: isCurrent ? Colors.white : Theme.of(context).colorScheme.onSurfaceVariant,
-            size: 22,
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: isCurrent
+                  ? Colors.white.withAlpha(30)
+                  : _getNatureColor(nature).withAlpha(20),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              _getNatureIcon(nature),
+              color: isCurrent ? Colors.white : _getNatureColor(nature),
+              size: 20,
+            ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 8),
           Text(
             name,
             style: TextStyle(
@@ -444,12 +658,35 @@ class _NodeWidget extends StatelessWidget {
 
   IconData _getNatureIcon(String? nature) {
     switch (nature) {
-      case 'tangible': return Icons.home;
-      case 'digital': return Icons.computer;
-      case 'financial': return Icons.account_balance;
-      case 'intangible': return Icons.description;
-      case 'service': return Icons.cloud;
-      default: return Icons.category;
+      case 'tangible':
+        return Icons.home;
+      case 'digital':
+        return Icons.computer;
+      case 'financial':
+        return Icons.account_balance;
+      case 'intangible':
+        return Icons.description;
+      case 'service':
+        return Icons.cloud;
+      default:
+        return Icons.category;
+    }
+  }
+
+  Color _getNatureColor(String? nature) {
+    switch (nature) {
+      case 'tangible':
+        return Colors.blue;
+      case 'digital':
+        return Colors.purple;
+      case 'financial':
+        return Colors.green;
+      case 'intangible':
+        return Colors.grey;
+      case 'service':
+        return Colors.orange;
+      default:
+        return Colors.grey;
     }
   }
 }

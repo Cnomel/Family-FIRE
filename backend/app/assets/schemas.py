@@ -13,6 +13,7 @@ class CreateAssetRequest(BaseModel):
     """Create a new asset with multi-dimensional classification."""
     name: str = Field(min_length=1, max_length=200, description="资产名称")
     description: str | None = Field(default=None, description="描述")
+    category_id: str | None = Field(default=None, description="用户自定义分类ID")
 
     # Multi-dimensional classification
     nature: str = Field(
@@ -49,6 +50,7 @@ class UpdateAssetRequest(BaseModel):
     """Update an existing asset."""
     name: str | None = Field(default=None, min_length=1, max_length=200, description="资产名称")
     description: str | None = Field(default=None, description="描述")
+    category_id: str | None = None
     nature: str | None = None
     utility: str | None = None
     ownership: str | None = None
@@ -64,6 +66,7 @@ class AssetFilterParams(BaseModel):
     utility: str | None = None
     ownership: str | None = None
     liquidity: str | None = None
+    category_id: str | None = None
     tags: list[str] | None = None
     status: str = "active"
     search: str | None = None
@@ -76,13 +79,46 @@ class AssetFilterParams(BaseModel):
 class BulkActionRequest(BaseModel):
     """Bulk action on multiple assets."""
     asset_ids: list[str] = Field(min_length=1, description="资产ID列表")
-    action: str = Field(pattern="^(archive|delete|tag)$", description="操作类型")
+    action: str = Field(pattern="^(archive|delete|tag|set_category)$", description="操作类型")
     tag: str | None = Field(default=None, description="标签（action=tag时必填）")
+    category_id: str | None = Field(default=None, description="分类ID（action=set_category时必填）")
 
 
 class AddTagRequest(BaseModel):
     """Add a tag to an asset."""
     tag: str = Field(min_length=1, max_length=50, description="标签")
+
+
+# ============================================================
+# Category Schemas
+# ============================================================
+
+class CreateCategoryRequest(BaseModel):
+    """Create a new asset category."""
+    name: str = Field(min_length=1, max_length=50, description="分类名称")
+    icon: str | None = Field(default=None, max_length=50, description="图标标识")
+    color: str | None = Field(default=None, max_length=20, description="颜色代码，如 #FF5733")
+
+
+class UpdateCategoryRequest(BaseModel):
+    """Update an asset category."""
+    name: str | None = Field(default=None, min_length=1, max_length=50, description="分类名称")
+    icon: str | None = None
+    color: str | None = None
+    sort_order: int | None = None
+
+
+class CategoryResponse(BaseModel):
+    """Category response."""
+    id: str
+    name: str
+    icon: str | None = None
+    color: str | None = None
+    sort_order: int = 0
+    is_system: bool = False
+    asset_count: int = 0
+    total_value: float = 0
+    created_at: datetime
 
 
 # ============================================================
@@ -112,6 +148,13 @@ class AssetResponse(BaseModel):
     tags: list[str] | None = None
     status: str = "active"
     financial: AssetFinancialResponse | None = None
+    instrument_type: str | None = None  # 金融资产类型: stock/etf/fund/cd/bond
+    category_id: str | None = None
+    category_name: str | None = None
+    category_icon: str | None = None
+    category_color: str | None = None
+    created_by: str | None = None
+    created_by_name: str | None = None
     created_at: datetime
 
 

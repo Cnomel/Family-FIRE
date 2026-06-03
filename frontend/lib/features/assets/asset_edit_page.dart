@@ -329,19 +329,27 @@ class _AssetEditPageState extends ConsumerState<AssetEditPage> {
           spacing: 8,
           runSpacing: 8,
           children: [
+            // 房产车辆
             _buildTemplateChip('房产', Icons.home, 'tangible', 'essential', 'owned', 'low'),
             _buildTemplateChip('汽车', Icons.directions_car, 'tangible', 'essential', 'owned', 'low'),
+            // 金融投资
             _buildTemplateChip('股票', Icons.show_chart, 'financial', 'speculative', 'custodied', 'high', instrumentType: 'stock'),
-            _buildTemplateChip('场内基金', Icons.pie_chart, 'financial', 'productive', 'custodied', 'high', instrumentType: 'etf'),
             _buildTemplateChip('场外基金', Icons.account_balance_wallet, 'financial', 'productive', 'custodied', 'medium', instrumentType: 'fund'),
+            _buildTemplateChip('场内基金', Icons.pie_chart, 'financial', 'productive', 'custodied', 'high', instrumentType: 'etf'),
             _buildTemplateChip('存款', Icons.savings, 'financial', 'protective', 'owned', 'instant', instrumentType: 'cd'),
             _buildTemplateChip('国债', Icons.account_balance, 'financial', 'protective', 'owned', 'fixed', instrumentType: 'bond'),
-            _buildTemplateChip('理财产品', Icons.trending_up, 'financial', 'productive', 'custodied', 'medium', instrumentType: 'fund'),
             _buildTemplateChip('保险', Icons.shield, 'service', 'protective', 'subscribed', 'fixed'),
-            _buildTemplateChip('订阅服务', Icons.subscriptions, 'service', 'lifestyle', 'subscribed', 'instant'),
-            _buildTemplateChip('家电', Icons.kitchen, 'tangible', 'lifestyle', 'owned', 'low'),
-            _buildTemplateChip('数码产品', Icons.devices, 'tangible', 'lifestyle', 'owned', 'medium'),
-            _buildTemplateChip('消耗品', Icons.shopping_basket, 'tangible', 'consumable', 'owned', 'low'),
+            // 服饰鞋包
+            _buildTemplateChip('服饰鞋包', Icons.checkroom, 'tangible', 'essential', 'owned', 'low'),
+            // 珠宝配饰
+            _buildTemplateChip('珠宝配饰', Icons.diamond, 'tangible', 'speculative', 'owned', 'low'),
+            // 数码家电
+            _buildTemplateChip('数码家电', Icons.devices, 'tangible', 'lifestyle', 'owned', 'medium'),
+            // 生活用品
+            _buildTemplateChip('生活用品', Icons.shopping_basket, 'tangible', 'consumable', 'owned', 'low'),
+            // 会员订阅
+            _buildTemplateChip('会员订阅', Icons.subscriptions, 'service', 'lifestyle', 'subscribed', 'instant'),
+            // 其他
             _buildTemplateChip('收藏品', Icons.brush, 'tangible', 'speculative', 'owned', 'low'),
             _buildTemplateChip('虚拟账号', Icons.account_circle, 'digital', 'lifestyle', 'licensed', 'fixed'),
           ],

@@ -12,7 +12,6 @@ Core metrics:
 """
 
 import random
-from datetime import datetime
 from typing import Any
 
 from sqlalchemy import func, select
@@ -20,9 +19,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.assets.models import Asset, AssetFinancial
 from app.common.logging import get_logger
-from app.families.models import FamilyMember
-from app.finance.models import IncomeExpenseRecord, Liability
 from app.common.utils import utcnow
+from app.families.models import FamilyMember
+from app.finance.models import Liability, MonthlyBudgetRecord
 
 logger = get_logger("fire_engine")
 
@@ -151,37 +150,63 @@ async def compute_asset_allocation(db: AsyncSession, family_id: str) -> dict[str
 async def compute_monthly_summary(
     db: AsyncSession, family_id: str, months: int = 12
 ) -> dict[str, Any]:
-    """Compute monthly income/expense summary."""
+    """Compute monthly income/expense summary using budget templates."""
     from datetime import timedelta
-    cutoff = utcnow() - timedelta(days=months * 30)
 
-    # Income
-    income_stmt = (
-        select(func.coalesce(func.sum(IncomeExpenseRecord.amount), 0))
-        .where(
-            IncomeExpenseRecord.family_id == family_id,
-            IncomeExpenseRecord.type == "income",
-            IncomeExpenseRecord.date >= cutoff,
-        )
+    from app.finance.models import ExpenseTemplate, IncomeTemplate
+
+    # Get current year-month and calculate start month
+    now = utcnow()
+    current_year_month = f"{now.year}-{now.month:02d}"
+
+    # Calculate start month
+    start_date = now - timedelta(days=months * 30)
+    start_year_month = f"{start_date.year}-{start_date.month:02d}"
+
+    # Get all templates for expected values
+    expense_templates_stmt = select(ExpenseTemplate).where(
+        ExpenseTemplate.family_id == family_id,
+        ExpenseTemplate.is_active.is_(True),
     )
-    income_result = await db.execute(income_stmt)
-    total_income = income_result.scalar()
+    expense_templates_result = await db.execute(expense_templates_stmt)
+    expense_templates = expense_templates_result.scalars().all()
 
-    # Expense
-    expense_stmt = (
-        select(func.coalesce(func.sum(IncomeExpenseRecord.amount), 0))
-        .where(
-            IncomeExpenseRecord.family_id == family_id,
-            IncomeExpenseRecord.type == "expense",
-            IncomeExpenseRecord.date >= cutoff,
-        )
+    income_templates_stmt = select(IncomeTemplate).where(
+        IncomeTemplate.family_id == family_id,
+        IncomeTemplate.is_active.is_(True),
     )
-    expense_result = await db.execute(expense_stmt)
-    total_expense = expense_result.scalar()
+    income_templates_result = await db.execute(income_templates_stmt)
+    _ = income_templates_result.scalars().all()
 
-    monthly_income = total_income / max(months, 1)
-    monthly_expense = total_expense / max(months, 1)
+    # Calculate expected monthly expense from templates (using average)
+    expected_monthly_expense = sum(
+        (t.expected_min + t.expected_max) / 2 for t in expense_templates
+    )
+
+    # Get actual records for the period
+    records_stmt = select(MonthlyBudgetRecord).where(
+        MonthlyBudgetRecord.family_id == family_id,
+        MonthlyBudgetRecord.year_month >= start_year_month,
+        MonthlyBudgetRecord.year_month <= current_year_month,
+    )
+    records_result = await db.execute(records_stmt)
+    records = records_result.scalars().all()
+
+    # Calculate actual totals
+    total_income = sum(r.actual_amount for r in records if r.template_type == "income")
+    total_expense = sum(r.actual_amount for r in records if r.template_type == "expense")
+
+    # Calculate months with data
+    months_with_data = len({r.year_month for r in records}) or 1
+
+    monthly_income = total_income / months_with_data
+    monthly_expense = total_expense / months_with_data
     annual_expense = monthly_expense * 12
+
+    # If no actual data, use expected values
+    if total_expense == 0 and expected_monthly_expense > 0:
+        monthly_expense = expected_monthly_expense
+        annual_expense = monthly_expense * 12
 
     savings_rate = (monthly_income - monthly_expense) / monthly_income if monthly_income > 0 else 0
 
@@ -193,6 +218,7 @@ async def compute_monthly_summary(
         "annual_expense": round(annual_expense, 2),
         "savings_rate": round(savings_rate, 4),
         "months": months,
+        "expected_monthly_expense": round(expected_monthly_expense, 2),
     }
 
 
@@ -327,7 +353,6 @@ async def compute_passive_income(db: AsyncSession, family_id: str) -> dict[str, 
     3. 其他金融资产: 根据总收益和持仓时间计算年化收益
     """
     from app.assets.models import AssetMetadataFinancial
-    from datetime import datetime
 
     # Get financial assets with metadata
     stmt = (
@@ -351,7 +376,7 @@ async def compute_passive_income(db: AsyncSession, family_id: str) -> dict[str, 
         value = financial.current_value if financial else 0
         cost = financial.purchase_price if financial else 0
         purchase_date = financial.purchase_date if financial else None
-        
+
         if value <= 0:
             continue
 
@@ -364,7 +389,7 @@ async def compute_passive_income(db: AsyncSession, family_id: str) -> dict[str, 
 
         # 判断是否为稳定资产（存款/国债/货币基金）
         is_stable = metadata and metadata.instrument_type in ('cd', 'bond', 'money_market')
-        
+
         if is_stable and metadata.expected_yield is not None and metadata.expected_yield > 0:
             # 稳定资产使用用户设置的收益率
             yield_rate = metadata.expected_yield
@@ -378,12 +403,12 @@ async def compute_passive_income(db: AsyncSession, family_id: str) -> dict[str, 
         elif purchase_date and cost > 0:
             # 其他资产：根据总收益和持仓时间计算年化收益
             total_gain = value - cost
-            
+
             # 计算持仓天数
             if purchase_date.tzinfo:
                 purchase_date = purchase_date.replace(tzinfo=None)
             holding_days = (now - purchase_date).days
-            
+
             if holding_days > 30 and total_gain > 0:
                 # 年化收益 = 总收益 / 持仓年数
                 holding_years = holding_days / 365
@@ -413,13 +438,13 @@ async def compute_passive_income(db: AsyncSession, family_id: str) -> dict[str, 
             "income_source": income_source,
             "estimated_annual_income": round(annual_income, 2),
         }
-        
+
         # 对于非稳定资产，添加额外信息
         if income_source == 'calculated' and total_gain is not None and holding_days is not None:
             source_data["total_gain"] = round(total_gain, 2)
             source_data["holding_days"] = holding_days
             source_data["holding_years"] = round(holding_days / 365, 2)
-        
+
         sources.append(source_data)
 
     # 按收入从高到低排序

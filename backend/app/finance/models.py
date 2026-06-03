@@ -1,4 +1,4 @@
-"""Finance models: liabilities, transactions, income/expense, categories, price snapshots."""
+"""Finance models: liabilities, transactions, budget templates, categories, price snapshots."""
 
 from datetime import datetime
 
@@ -118,6 +118,63 @@ class IncomeExpenseRecord(TimestampMixin, table=True):
     # Recurring settings
     is_recurring: bool = Field(default=False, description="是否周期性")
     recurring_config: dict | None = Field(default=None, sa_column=Column(JSON), description="周期配置")
+
+
+# ============================================================
+# Budget Templates (新系统)
+# ============================================================
+
+class ExpenseTemplate(TimestampMixin, table=True):
+    """支出项模板（固定支出项和临时支出项）"""
+    __tablename__ = "expense_templates"
+
+    id: str | None = Field(default=None, primary_key=True, max_length=36)
+    family_id: str = Field(max_length=36, index=True, description="家庭ID")
+    name: str = Field(max_length=100, description="名称（如：房租、水电、餐饮）")
+    category_id: str | None = Field(default=None, max_length=36, description="关联分类ID")
+    icon: str | None = Field(default=None, max_length=50, description="图标标识")
+    expected_min: float = Field(default=0, description="预期最小值")
+    expected_max: float = Field(default=0, description="预期最大值")
+    is_fixed: bool = Field(default=True, description="是否固定项（每月自动显示）")
+    is_system: bool = Field(default=False, description="是否系统预设（不可删除）")
+    sort_order: int = Field(default=0, description="排序")
+    is_active: bool = Field(default=True, description="是否启用")
+    created_by: str = Field(max_length=36, description="创建者用户ID")
+
+
+class IncomeTemplate(TimestampMixin, table=True):
+    """收入项模板"""
+    __tablename__ = "income_templates"
+
+    id: str | None = Field(default=None, primary_key=True, max_length=36)
+    family_id: str = Field(max_length=36, index=True, description="家庭ID")
+    name: str = Field(max_length=100, description="名称（如：工资、奖金、兼职）")
+    category_id: str | None = Field(default=None, max_length=36, description="关联分类ID")
+    icon: str | None = Field(default=None, max_length=50, description="图标标识")
+    is_fixed: bool = Field(default=True, description="是否固定项")
+    is_system: bool = Field(default=False, description="是否系统预设（不可删除）")
+    sort_order: int = Field(default=0, description="排序")
+    is_active: bool = Field(default=True, description="是否启用")
+    created_by: str = Field(max_length=36, description="创建者用户ID")
+
+
+class MonthlyBudgetRecord(TimestampMixin, table=True):
+    """月度收支记录"""
+    __tablename__ = "monthly_budget_records"
+    __table_args__ = (
+        Index("idx_mbr_family_month", "family_id", "year_month"),
+        Index("idx_mbr_family_template", "family_id", "template_id"),
+        Index("idx_mbr_family_type", "family_id", "template_type"),
+    )
+
+    id: str | None = Field(default=None, primary_key=True, max_length=36)
+    family_id: str = Field(max_length=36, index=True, description="家庭ID")
+    year_month: str = Field(max_length=7, description="格式：2024-01")
+    template_id: str = Field(max_length=36, description="关联模板ID")
+    template_type: str = Field(max_length=10, description="类型：expense/income")
+    actual_amount: float = Field(default=0, description="实际金额")
+    notes: str | None = Field(default=None, max_length=500, description="备注")
+    recorded_by: str = Field(max_length=36, description="记录者用户ID")
 
 
 # ============================================================

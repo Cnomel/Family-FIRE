@@ -3,7 +3,7 @@
 Each calculator computes the current value of an asset based on its lifecycle trajectory.
 """
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from app.common.logging import get_logger

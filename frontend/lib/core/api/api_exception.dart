@@ -16,26 +16,88 @@ class ApiException implements Exception {
   factory ApiException.fromDioException(DioException e) {
     switch (e.type) {
       case DioExceptionType.connectionTimeout:
+        return ApiException(
+          code: 'CONNECTION_TIMEOUT',
+          message: '连接超时，请检查网络是否正常或服务器是否可达',
+          statusCode: 408,
+        );
       case DioExceptionType.sendTimeout:
+        return ApiException(
+          code: 'SEND_TIMEOUT',
+          message: '发送超时，网络可能不稳定，请稍后重试',
+          statusCode: 408,
+        );
       case DioExceptionType.receiveTimeout:
         return ApiException(
-          code: 'TIMEOUT',
-          message: '网络超时，请检查网络连接',
+          code: 'RECEIVE_TIMEOUT',
+          message: '接收超时，服务器响应过慢，请稍后重试',
           statusCode: 408,
         );
       case DioExceptionType.connectionError:
-        return ApiException(
-          code: 'NETWORK_ERROR',
-          message: '网络连接失败，请检查网络设置',
-        );
+        return _handleConnectionError(e);
       case DioExceptionType.badResponse:
         return _fromResponse(e.response!);
+      case DioExceptionType.cancel:
+        return ApiException(
+          code: 'REQUEST_CANCELLED',
+          message: '请求已取消',
+        );
       default:
         return ApiException(
           code: 'UNKNOWN',
           message: '未知错误: ${e.message}',
         );
     }
+  }
+
+  /// 处理连接错误，提供更详细的错误信息
+  static ApiException _handleConnectionError(DioException e) {
+    final message = e.message?.toLowerCase() ?? '';
+
+    if (message.contains('network is unreachable') ||
+        message.contains('no network') ||
+        message.contains('network unreachable')) {
+      return ApiException(
+        code: 'NETWORK_UNREACHABLE',
+        message: '当前无网络连接，请检查WiFi或移动数据是否开启',
+      );
+    }
+
+    if (message.contains('connection refused') ||
+        message.contains('connection reset') ||
+        message.contains('connection aborted')) {
+      return ApiException(
+        code: 'CONNECTION_REFUSED',
+        message: '服务器拒绝连接，可能正在维护中，请稍后重试',
+      );
+    }
+
+    if (message.contains('host is unreachable') ||
+        message.contains('no route to host')) {
+      return ApiException(
+        code: 'HOST_UNREACHABLE',
+        message: '无法访问服务器，请检查网络设置或VPN连接',
+      );
+    }
+
+    if (message.contains('ssl') || message.contains('certificate')) {
+      return ApiException(
+        code: 'SSL_ERROR',
+        message: '安全连接失败，请检查系统时间或网络代理设置',
+      );
+    }
+
+    if (message.contains('socket') || message.contains('broken pipe')) {
+      return ApiException(
+        code: 'SOCKET_ERROR',
+        message: '网络连接中断，请检查网络稳定性',
+      );
+    }
+
+    return ApiException(
+      code: 'NETWORK_ERROR',
+      message: '网络连接失败，请检查网络设置后重试',
+    );
   }
 
   factory ApiException.fromResponse(Response response) {

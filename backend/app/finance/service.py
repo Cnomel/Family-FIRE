@@ -1,4 +1,4 @@
-"""Finance service: liability, income/expense, transactions, cost basis."""
+"""Finance service: liability, budget templates, monthly records, transactions, cost basis."""
 
 import uuid
 from datetime import datetime
@@ -7,29 +7,37 @@ from typing import Any
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.common.exceptions import NotFoundError, PermissionDeniedError
+from app.common.exceptions import NotFoundError, PermissionDeniedError, ValidationError
 from app.common.logging import get_logger
 from app.common.utils import utcnow
 from app.families.models import FamilyMember
 from app.finance.models import (
     ExpenseCategory,
+    ExpenseTemplate,
     IncomeCategory,
-    IncomeExpenseRecord,
+    IncomeTemplate,
     Liability,
+    MonthlyBudgetRecord,
     PriceSnapshot,
     Transaction,
 )
 from app.finance.schemas import (
+    BatchSaveMonthlyRequest,
     CostBasisInfo,
-    CreateIncomeExpenseRequest,
+    CreateExpenseTemplateRequest,
+    CreateIncomeTemplateRequest,
     CreateLiabilityRequest,
     CreateTransactionRequest,
-    IncomeExpenseResponse,
-    IncomeExpenseSummary,
+    ExpenseTemplateResponse,
+    IncomeTemplateResponse,
     LiabilityResponse,
+    MonthlyRecordResponse,
+    MonthlySummaryResponse,
     TransactionResponse,
-    UpdateIncomeExpenseRequest,
+    UpdateExpenseTemplateRequest,
+    UpdateIncomeTemplateRequest,
     UpdateLiabilityRequest,
+    YearlySummaryResponse,
 )
 
 logger = get_logger("finance_service")
@@ -198,201 +206,465 @@ def _liability_to_response(liab: Liability) -> LiabilityResponse:
 
 
 # ============================================================
-# Income & Expense Management
+# Expense Template Management
 # ============================================================
 
-async def create_income_expense(
-    db: AsyncSession, family_id: str, user_id: str, data: CreateIncomeExpenseRequest
-) -> IncomeExpenseResponse:
-    """Record an income or expense."""
+async def create_expense_template(
+    db: AsyncSession, family_id: str, user_id: str, data: CreateExpenseTemplateRequest
+) -> ExpenseTemplateResponse:
+    """Create a new expense template."""
     await _verify_family_member(db, family_id, user_id)
 
-    # 移除时区信息，确保是 naive datetime（数据库是 TIMESTAMP WITHOUT TIME ZONE）
-    record_date = data.date.replace(tzinfo=None) if data.date.tzinfo else data.date
-
-    record = IncomeExpenseRecord(
+    template = ExpenseTemplate(
         id=str(uuid.uuid4()),
         family_id=family_id,
-        user_id=user_id,
-        type=data.type,
+        name=data.name,
         category_id=data.category_id,
-        subcategory_id=data.subcategory_id,
-        amount=data.amount,
-        currency=data.currency,
-        date=record_date,
-        description=data.description,
-        notes=data.notes,
-        is_recurring=data.is_recurring,
-        recurring_config=data.recurring_config,
+        icon=data.icon,
+        expected_min=data.expected_min,
+        expected_max=data.expected_max,
+        is_fixed=data.is_fixed,
+        is_system=False,
+        sort_order=data.sort_order,
+        is_active=True,
+        created_by=user_id,
     )
-    db.add(record)
+    db.add(template)
     await db.flush()
 
-    logger.info("income_expense_created", type=data.type, amount=data.amount)
-    return _ie_to_response(record)
+    logger.info("expense_template_created", template_id=template.id, name=data.name)
+    return _expense_template_to_response(template)
 
 
-async def list_income_expense(
-    db: AsyncSession, family_id: str, user_id: str,
-    record_type: str | None = None,
-    start_date: datetime | None = None,
-    end_date: datetime | None = None,
-    page: int = 1,
-    page_size: int = 20,
-) -> dict[str, Any]:
-    """List income/expense records with filtering."""
+async def list_expense_templates(
+    db: AsyncSession, family_id: str, user_id: str, active_only: bool = True
+) -> list[ExpenseTemplateResponse]:
+    """List all expense templates for a family."""
     await _verify_family_member(db, family_id, user_id)
 
-    conditions = [IncomeExpenseRecord.family_id == family_id]
-    if record_type:
-        conditions.append(IncomeExpenseRecord.type == record_type)
-    if start_date:
-        conditions.append(IncomeExpenseRecord.date >= start_date)
-    if end_date:
-        conditions.append(IncomeExpenseRecord.date <= end_date)
+    stmt = select(ExpenseTemplate).where(ExpenseTemplate.family_id == family_id)
+    if active_only:
+        stmt = stmt.where(ExpenseTemplate.is_active.is_(True))
+    stmt = stmt.order_by(ExpenseTemplate.sort_order, ExpenseTemplate.created_at)
 
-    # Count
-    count_stmt = select(func.count()).select_from(IncomeExpenseRecord).where(and_(*conditions))
-    count_result = await db.execute(count_stmt)
-    total = count_result.scalar()
+    result = await db.execute(stmt)
+    templates = result.scalars().all()
+    return [_expense_template_to_response(t) for t in templates]
 
-    # Get records
-    offset = (page - 1) * page_size
-    stmt = (
-        select(IncomeExpenseRecord)
-        .where(and_(*conditions))
-        .order_by(IncomeExpenseRecord.date.desc())
-        .offset(offset)
-        .limit(page_size)
+
+async def update_expense_template(
+    db: AsyncSession, template_id: str, family_id: str, user_id: str,
+    data: UpdateExpenseTemplateRequest,
+) -> ExpenseTemplateResponse:
+    """Update an expense template."""
+    await _verify_family_member(db, family_id, user_id)
+
+    stmt = select(ExpenseTemplate).where(
+        ExpenseTemplate.id == template_id,
+        ExpenseTemplate.family_id == family_id,
+    )
+    result = await db.execute(stmt)
+    template = result.scalar_one_or_none()
+
+    if not template:
+        raise NotFoundError("支出项模板", template_id)
+
+    # 系统预设项只允许修改支出范围，不允许修改名称
+    if template.is_system:
+        allowed_fields = {'expected_min', 'expected_max', 'is_active', 'sort_order'}
+        update_data = data.model_dump(exclude_unset=True)
+        for field in update_data:
+            if field not in allowed_fields:
+                raise ValidationError(f"系统预设项不可修改 {field} 字段")
+        for field, value in update_data.items():
+            setattr(template, field, value)
+    else:
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(template, field, value)
+
+    await db.flush()
+    return _expense_template_to_response(template)
+
+
+async def delete_expense_template(
+    db: AsyncSession, template_id: str, family_id: str, user_id: str
+) -> None:
+    """Delete an expense template (only if no records exist)."""
+    await _verify_family_member(db, family_id, user_id)
+
+    stmt = select(ExpenseTemplate).where(
+        ExpenseTemplate.id == template_id,
+        ExpenseTemplate.family_id == family_id,
+    )
+    result = await db.execute(stmt)
+    template = result.scalar_one_or_none()
+
+    if not template:
+        raise NotFoundError("支出项模板", template_id)
+
+    if template.is_system:
+        raise ValidationError("系统预设项不可删除")
+
+    # Check if there are any records using this template
+    record_count_stmt = select(func.count()).select_from(MonthlyBudgetRecord).where(
+        MonthlyBudgetRecord.template_id == template_id
+    )
+    count_result = await db.execute(record_count_stmt)
+    count = count_result.scalar()
+
+    if count > 0:
+        raise ValidationError(f"该支出项已有 {count} 条记录，无法删除。请设置为停用状态。")
+
+    await db.delete(template)
+    await db.flush()
+    logger.info("expense_template_deleted", template_id=template_id)
+
+
+def _expense_template_to_response(t: ExpenseTemplate) -> ExpenseTemplateResponse:
+    return ExpenseTemplateResponse(
+        id=t.id,
+        name=t.name,
+        category_id=t.category_id,
+        icon=t.icon,
+        expected_min=t.expected_min,
+        expected_max=t.expected_max,
+        is_fixed=t.is_fixed,
+        is_system=t.is_system,
+        sort_order=t.sort_order,
+        is_active=t.is_active,
+        created_at=t.created_at,
+    )
+
+
+# ============================================================
+# Income Template Management
+# ============================================================
+
+async def create_income_template(
+    db: AsyncSession, family_id: str, user_id: str, data: CreateIncomeTemplateRequest
+) -> IncomeTemplateResponse:
+    """Create a new income template."""
+    await _verify_family_member(db, family_id, user_id)
+
+    template = IncomeTemplate(
+        id=str(uuid.uuid4()),
+        family_id=family_id,
+        name=data.name,
+        category_id=data.category_id,
+        icon=data.icon,
+        is_fixed=data.is_fixed,
+        is_system=False,
+        sort_order=data.sort_order,
+        is_active=True,
+        created_by=user_id,
+    )
+    db.add(template)
+    await db.flush()
+
+    logger.info("income_template_created", template_id=template.id, name=data.name)
+    return _income_template_to_response(template)
+
+
+async def list_income_templates(
+    db: AsyncSession, family_id: str, user_id: str, active_only: bool = True
+) -> list[IncomeTemplateResponse]:
+    """List all income templates for a family."""
+    await _verify_family_member(db, family_id, user_id)
+
+    stmt = select(IncomeTemplate).where(IncomeTemplate.family_id == family_id)
+    if active_only:
+        stmt = stmt.where(IncomeTemplate.is_active.is_(True))
+    stmt = stmt.order_by(IncomeTemplate.sort_order, IncomeTemplate.created_at)
+
+    result = await db.execute(stmt)
+    templates = result.scalars().all()
+    return [_income_template_to_response(t) for t in templates]
+
+
+async def update_income_template(
+    db: AsyncSession, template_id: str, family_id: str, user_id: str,
+    data: UpdateIncomeTemplateRequest,
+) -> IncomeTemplateResponse:
+    """Update an income template."""
+    await _verify_family_member(db, family_id, user_id)
+
+    stmt = select(IncomeTemplate).where(
+        IncomeTemplate.id == template_id,
+        IncomeTemplate.family_id == family_id,
+    )
+    result = await db.execute(stmt)
+    template = result.scalar_one_or_none()
+
+    if not template:
+        raise NotFoundError("收入项模板", template_id)
+
+    # 系统预设项只允许修改部分字段
+    if template.is_system:
+        allowed_fields = {'is_active', 'sort_order'}
+        update_data = data.model_dump(exclude_unset=True)
+        for field in update_data:
+            if field not in allowed_fields:
+                raise ValidationError(f"系统预设项不可修改 {field} 字段")
+        for field, value in update_data.items():
+            setattr(template, field, value)
+    else:
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(template, field, value)
+
+    await db.flush()
+    return _income_template_to_response(template)
+
+
+async def delete_income_template(
+    db: AsyncSession, template_id: str, family_id: str, user_id: str
+) -> None:
+    """Delete an income template (only if no records exist)."""
+    await _verify_family_member(db, family_id, user_id)
+
+    stmt = select(IncomeTemplate).where(
+        IncomeTemplate.id == template_id,
+        IncomeTemplate.family_id == family_id,
+    )
+    result = await db.execute(stmt)
+    template = result.scalar_one_or_none()
+
+    if not template:
+        raise NotFoundError("收入项模板", template_id)
+
+    if template.is_system:
+        raise ValidationError("系统预设项不可删除")
+
+    # Check if there are any records using this template
+    record_count_stmt = select(func.count()).select_from(MonthlyBudgetRecord).where(
+        MonthlyBudgetRecord.template_id == template_id
+    )
+    count_result = await db.execute(record_count_stmt)
+    count = count_result.scalar()
+
+    if count > 0:
+        raise ValidationError(f"该收入项已有 {count} 条记录，无法删除。请设置为停用状态。")
+
+    await db.delete(template)
+    await db.flush()
+    logger.info("income_template_deleted", template_id=template_id)
+
+
+def _income_template_to_response(t: IncomeTemplate) -> IncomeTemplateResponse:
+    return IncomeTemplateResponse(
+        id=t.id,
+        name=t.name,
+        category_id=t.category_id,
+        icon=t.icon,
+        is_fixed=t.is_fixed,
+        is_system=t.is_system,
+        sort_order=t.sort_order,
+        is_active=t.is_active,
+        created_at=t.created_at,
+    )
+
+
+# ============================================================
+# Monthly Budget Records
+# ============================================================
+
+async def get_monthly_records(
+    db: AsyncSession, family_id: str, user_id: str, year_month: str
+) -> MonthlySummaryResponse:
+    """Get all budget records for a specific month."""
+    await _verify_family_member(db, family_id, user_id)
+
+    # Get all active templates
+    expense_templates = await list_expense_templates(db, family_id, user_id, active_only=True)
+    income_templates = await list_income_templates(db, family_id, user_id, active_only=True)
+
+    # Get existing records for this month
+    stmt = select(MonthlyBudgetRecord).where(
+        MonthlyBudgetRecord.family_id == family_id,
+        MonthlyBudgetRecord.year_month == year_month,
     )
     result = await db.execute(stmt)
     records = result.scalars().all()
 
-    return {
-        "records": [_ie_to_response(r) for r in records],
-        "total": total,
-        "page": page,
-        "page_size": page_size,
-    }
+    # Build record map
+    record_map = {r.template_id: r for r in records}
 
+    # Build expense records
+    # 固定项：始终显示
+    # 临时项：只有在有记录时才显示
+    expense_records = []
+    total_expense = 0
+    for template in expense_templates:
+        record = record_map.get(template.id)
 
-async def get_income_expense_summary(
-    db: AsyncSession, family_id: str, user_id: str,
-    start_date: datetime | None = None,
-    end_date: datetime | None = None,
-) -> IncomeExpenseSummary:
-    """Get income/expense summary."""
-    await _verify_family_member(db, family_id, user_id)
+        # 临时项且没有记录，跳过
+        if not template.is_fixed and record is None:
+            continue
 
-    conditions = [IncomeExpenseRecord.family_id == family_id]
-    if start_date:
-        conditions.append(IncomeExpenseRecord.date >= start_date)
-    if end_date:
-        conditions.append(IncomeExpenseRecord.date <= end_date)
+        actual_amount = record.actual_amount if record else 0
+        total_expense += actual_amount
+        expense_records.append(MonthlyRecordResponse(
+            id=record.id if record else "",
+            template_id=template.id,
+            template_type="expense",
+            template_name=template.name,
+            template_icon=template.icon,
+            expected_min=template.expected_min,
+            expected_max=template.expected_max,
+            actual_amount=actual_amount,
+            notes=record.notes if record else None,
+            created_at=record.created_at if record else datetime.min,
+        ))
 
-    # Income total
-    income_stmt = (
-        select(func.coalesce(func.sum(IncomeExpenseRecord.amount), 0))
-        .where(and_(IncomeExpenseRecord.type == "income", *conditions))
-    )
-    income_result = await db.execute(income_stmt)
-    total_income = income_result.scalar()
+    # Build income records
+    # 固定项：始终显示
+    # 临时项：只有在有记录时才显示
+    income_records = []
+    total_income = 0
+    for template in income_templates:
+        record = record_map.get(template.id)
 
-    # Expense total
-    expense_stmt = (
-        select(func.coalesce(func.sum(IncomeExpenseRecord.amount), 0))
-        .where(and_(IncomeExpenseRecord.type == "expense", *conditions))
-    )
-    expense_result = await db.execute(expense_stmt)
-    total_expense = expense_result.scalar()
+        # 临时项且没有记录，跳过
+        if not template.is_fixed and record is None:
+            continue
 
-    # By category
-    cat_stmt = (
-        select(
-            IncomeExpenseRecord.type,
-            IncomeExpenseRecord.category_id,
-            func.sum(IncomeExpenseRecord.amount).label("total"),
-            func.count().label("count"),
-        )
-        .where(and_(*conditions))
-        .group_by(IncomeExpenseRecord.type, IncomeExpenseRecord.category_id)
-    )
-    cat_result = await db.execute(cat_stmt)
-    by_category = [
-        {"type": row.type, "category_id": row.category_id, "total": row.total, "count": row.count}
-        for row in cat_result.all()
-    ]
+        actual_amount = record.actual_amount if record else 0
+        total_income += actual_amount
+        income_records.append(MonthlyRecordResponse(
+            id=record.id if record else "",
+            template_id=template.id,
+            template_type="income",
+            template_name=template.name,
+            template_icon=template.icon,
+            expected_min=0,
+            expected_max=0,
+            actual_amount=actual_amount,
+            notes=record.notes if record else None,
+            created_at=record.created_at if record else datetime.min,
+        ))
 
     net = total_income - total_expense
-    savings_rate = net / total_income if total_income > 0 else 0
+    savings_rate = (net / total_income * 100) if total_income > 0 else 0
 
-    return IncomeExpenseSummary(
+    return MonthlySummaryResponse(
+        year_month=year_month,
         total_income=total_income,
         total_expense=total_expense,
         net=net,
-        savings_rate=round(savings_rate, 4),
-        period_start=start_date,
-        period_end=end_date,
-        by_category=by_category,
+        savings_rate=round(savings_rate, 2),
+        income_records=income_records,
+        expense_records=expense_records,
     )
 
 
-async def update_income_expense(
-    db: AsyncSession, record_id: str, family_id: str, user_id: str,
-    data: UpdateIncomeExpenseRequest,
-) -> IncomeExpenseResponse:
-    """Update an income/expense record."""
-    await _verify_family_member(db, family_id, user_id)
-
-    stmt = select(IncomeExpenseRecord).where(
-        IncomeExpenseRecord.id == record_id,
-        IncomeExpenseRecord.family_id == family_id,
-    )
-    result = await db.execute(stmt)
-    record = result.scalar_one_or_none()
-
-    if not record:
-        raise NotFoundError("收支记录", record_id)
-
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(record, field, value)
-
-    await db.flush()
-    return _ie_to_response(record)
-
-
-async def delete_income_expense(
-    db: AsyncSession, record_id: str, family_id: str, user_id: str
+async def save_monthly_records(
+    db: AsyncSession, family_id: str, user_id: str, year_month: str,
+    data: BatchSaveMonthlyRequest,
 ) -> None:
-    """Delete an income/expense record."""
+    """Batch save monthly budget records."""
     await _verify_family_member(db, family_id, user_id)
 
-    stmt = select(IncomeExpenseRecord).where(
-        IncomeExpenseRecord.id == record_id,
-        IncomeExpenseRecord.family_id == family_id,
+    for item in data.records:
+        # Check if record already exists
+        stmt = select(MonthlyBudgetRecord).where(
+            MonthlyBudgetRecord.family_id == family_id,
+            MonthlyBudgetRecord.year_month == year_month,
+            MonthlyBudgetRecord.template_id == item.template_id,
+        )
+        result = await db.execute(stmt)
+        record = result.scalar_one_or_none()
+
+        if record:
+            # Update existing record
+            record.actual_amount = item.actual_amount
+            record.notes = item.notes
+        else:
+            # Create new record
+            record = MonthlyBudgetRecord(
+                id=str(uuid.uuid4()),
+                family_id=family_id,
+                year_month=year_month,
+                template_id=item.template_id,
+                template_type=item.template_type,
+                actual_amount=item.actual_amount,
+                notes=item.notes,
+                recorded_by=user_id,
+            )
+            db.add(record)
+
+    await db.flush()
+    logger.info("monthly_records_saved", family_id=family_id, year_month=year_month, count=len(data.records))
+
+
+async def get_yearly_summary(
+    db: AsyncSession, family_id: str, user_id: str, year: int
+) -> YearlySummaryResponse:
+    """Get yearly budget summary."""
+    await _verify_family_member(db, family_id, user_id)
+
+    # Get all records for the year
+    stmt = select(MonthlyBudgetRecord).where(
+        MonthlyBudgetRecord.family_id == family_id,
+        MonthlyBudgetRecord.year_month.like(f"{year}-%"),
     )
     result = await db.execute(stmt)
-    record = result.scalar_one_or_none()
+    records = result.scalars().all()
 
-    if not record:
-        raise NotFoundError("收支记录", record_id)
+    # Get templates for names
+    expense_templates = await list_expense_templates(db, family_id, user_id, active_only=False)
+    income_templates = await list_income_templates(db, family_id, user_id, active_only=False)
+    template_map = {t.id: t for t in expense_templates + income_templates}
 
-    await db.delete(record)
-    await db.flush()
+    # Group by month
+    monthly_data = {}
+    for month in range(1, 13):
+        month_key = f"{year}-{month:02d}"
+        monthly_data[month_key] = {
+            "month": month,
+            "month_key": month_key,
+            "income": 0,
+            "expense": 0,
+            "net": 0,
+        }
 
+    # Group by category
+    category_data = {}
 
-def _ie_to_response(r: IncomeExpenseRecord) -> IncomeExpenseResponse:
-    return IncomeExpenseResponse(
-        id=r.id,
-        type=r.type,
-        category_id=r.category_id,
-        subcategory_id=r.subcategory_id,
-        amount=r.amount,
-        currency=r.currency,
-        date=r.date,
-        description=r.description,
-        is_recurring=r.is_recurring,
-        created_at=r.created_at,
+    for record in records:
+        month_key = record.year_month
+        if month_key in monthly_data:
+            if record.template_type == "income":
+                monthly_data[month_key]["income"] += record.actual_amount
+            else:
+                monthly_data[month_key]["expense"] += record.actual_amount
+
+        # Category aggregation
+        template = template_map.get(record.template_id)
+        if template:
+            cat_name = template.name
+            if cat_name not in category_data:
+                category_data[cat_name] = {"name": cat_name, "type": record.template_type, "total": 0}
+            category_data[cat_name]["total"] += record.actual_amount
+
+    # Calculate net for each month
+    for month_key in monthly_data:
+        monthly_data[month_key]["net"] = (
+            monthly_data[month_key]["income"] - monthly_data[month_key]["expense"]
+        )
+
+    monthly_list = list(monthly_data.values())
+    total_income = sum(m["income"] for m in monthly_list)
+    total_expense = sum(m["expense"] for m in monthly_list)
+    total_net = total_income - total_expense
+    avg_savings_rate = (total_net / total_income * 100) if total_income > 0 else 0
+
+    return YearlySummaryResponse(
+        year=year,
+        total_income=total_income,
+        total_expense=total_expense,
+        total_net=total_net,
+        average_savings_rate=round(avg_savings_rate, 2),
+        monthly_data=monthly_list,
+        by_category=list(category_data.values()),
     )
 
 
@@ -703,14 +975,6 @@ async def get_portfolio(
             )
         )).scalar() or 0
 
-        sell_total = (await db.execute(
-            select(func.coalesce(func.sum(Transaction.total), 0))
-            .where(
-                Transaction.asset_id == asset.id,
-                Transaction.type == "sell",
-            )
-        )).scalar() or 0
-
         # Net cost = buy total - sell total (proportional)
         if buy_shares > 0 and sell_shares > 0:
             avg_buy_price = buy_total / buy_shares
@@ -723,7 +987,7 @@ async def get_portfolio(
             remaining_cost = financial.purchase_price if financial else 0
 
         current_value = financial.current_value if financial else 0
-        
+
         # 计算收益：优先使用 expected_yield 或 annual_income
         if metadata and metadata.annual_income is not None and metadata.annual_income > 0:
             # 使用手动输入的年收益金额
@@ -737,7 +1001,7 @@ async def get_portfolio(
             # 使用市值与成本的差额（适用于股票等）
             gain = current_value - remaining_cost
             gain_source = 'market'
-        
+
         gain_percent = (gain / remaining_cost * 100) if remaining_cost > 0 else 0
 
         total_value += current_value

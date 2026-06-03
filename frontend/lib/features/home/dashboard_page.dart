@@ -286,12 +286,12 @@ class _NetWorthCard extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
+          gradient: const LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Theme.of(context).colorScheme.primary,
-              Theme.of(context).colorScheme.primary.withAlpha(204),
+              Color(0xFF1E3A8A),  // 深蓝
+              Color(0xFF7C3AED),  // 紫色
             ],
           ),
         ),

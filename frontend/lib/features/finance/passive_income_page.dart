@@ -58,10 +58,10 @@ class _PassiveIncomePageState extends ConsumerState<PassiveIncomePage> {
                           padding: const EdgeInsets.all(24),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
-                            gradient: LinearGradient(
+                            gradient: const LinearGradient(
                               colors: [
-                                Theme.of(context).colorScheme.primary,
-                                Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+                                Color(0xFF1E3A8A),  // 深蓝
+                                Color(0xFF7C3AED),  // 紫色
                               ],
                             ),
                           ),

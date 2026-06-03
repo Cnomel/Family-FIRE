@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'api_exception.dart';
 import '../storage/secure_storage.dart';
+import '../network/network_service.dart';
+import '../cache/local_cache_service.dart';
 
 final apiClientProvider = Provider<ApiClient>((ref) {
   return ApiClient(ref);
@@ -48,10 +52,43 @@ class ApiClient {
 
   Dio get dio => _dio;
 
-  /// GET request
-  Future<Response> get(String path, {Map<String, dynamic>? queryParams}) async {
+  /// GET request (支持缓存)
+  Future<Response> get(
+    String path, {
+    Map<String, dynamic>? queryParams,
+    bool useCache = false,
+    Duration cacheTtl = const Duration(hours: 1),
+  }) async {
+    // 检查网络状态
+    final networkService = _ref.read(networkServiceProvider);
+    if (!networkService.isConnected && useCache) {
+      // 断网时尝试从缓存获取
+      final cacheService = _ref.read(localCacheServiceProvider);
+      final cachedData = cacheService.getApiResponse(path, queryParams: queryParams);
+      if (cachedData != null) {
+        return Response(
+          data: cachedData,
+          requestOptions: RequestOptions(path: path),
+          statusCode: 200,
+        );
+      }
+    }
+
     try {
-      return await _dio.get(path, queryParameters: queryParams);
+      final response = await _dio.get(path, queryParameters: queryParams);
+
+      // 成功时缓存响应
+      if (useCache && response.statusCode == 200) {
+        final cacheService = _ref.read(localCacheServiceProvider);
+        await cacheService.setApiResponse(
+          path,
+          response.data,
+          queryParams: queryParams,
+          ttl: cacheTtl,
+        );
+      }
+
+      return response;
     } on DioException catch (e) {
       throw ApiException.fromDioException(e);
     }
@@ -115,17 +152,41 @@ class _AuthInterceptor extends Interceptor {
   }
 }
 
-/// Token刷新拦截器 - 401时自动刷新
+/// Token刷新拦截器 - 401时自动刷新（支持并发请求）
 class _RefreshInterceptor extends Interceptor {
   final Dio _dio;
   final Ref _ref;
   bool _isRefreshing = false;
+  final List<Completer<void>> _refreshCompleters = [];
 
   _RefreshInterceptor(this._dio, this._ref);
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    if (err.response?.statusCode == 401 && !_isRefreshing) {
+    if (err.response?.statusCode == 401) {
+      if (_isRefreshing) {
+        // 已经在刷新中，等待刷新完成
+        final completer = Completer<void>();
+        _refreshCompleters.add(completer);
+        try {
+          await completer.future;
+          // 刷新完成后重试原请求
+          final storage = _ref.read(secureStorageProvider);
+          final newToken = await storage.getAccessToken();
+          if (newToken != null) {
+            final opts = err.requestOptions;
+            opts.headers['Authorization'] = 'Bearer $newToken';
+            final retryResponse = await _dio.fetch(opts);
+            handler.resolve(retryResponse);
+            return;
+          }
+        } catch (_) {
+          // 刷新失败
+        }
+        handler.next(err);
+        return;
+      }
+
       _isRefreshing = true;
       try {
         final storage = _ref.read(secureStorageProvider);
@@ -140,6 +201,12 @@ class _RefreshInterceptor extends Interceptor {
             accessToken: data['access_token'],
             refreshToken: data['refresh_token'],
           );
+          // 通知所有等待的请求
+          for (final completer in _refreshCompleters) {
+            completer.complete();
+          }
+          _refreshCompleters.clear();
+
           // 重试原请求
           final opts = err.requestOptions;
           opts.headers['Authorization'] = 'Bearer ${data['access_token']}';
@@ -148,7 +215,11 @@ class _RefreshInterceptor extends Interceptor {
           return;
         }
       } catch (_) {
-        // 刷新失败，清除token
+        // 刷新失败，清除token，通知等待的请求
+        for (final completer in _refreshCompleters) {
+          completer.completeError(Exception('Token刷新失败'));
+        }
+        _refreshCompleters.clear();
         final storage = _ref.read(secureStorageProvider);
         await storage.clearTokens();
       } finally {

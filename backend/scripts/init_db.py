@@ -23,7 +23,7 @@ async def create_tables():
     from app.users.models import User, SystemSettings  # noqa: F401
     from app.families.models import Family, FamilyMember  # noqa: F401
     from app.assets.models import (  # noqa: F401
-        Asset, AssetFinancial, AssetLifecycle, AssetRelationship,
+        Asset, AssetCategory, AssetFinancial, AssetLifecycle, AssetRelationship,
         AssetMetadataVehicle, AssetMetadataRealEstate, AssetMetadataElectronics,
         AssetMetadataFurniture, AssetMetadataInsurance, AssetMetadataFinancial,
         AssetMetadataSubscription, AssetMetadataAccount, AssetMetadataConsumable,
@@ -31,6 +31,7 @@ async def create_tables():
     from app.finance.models import (  # noqa: F401
         Liability, Transaction, ExpenseCategory, IncomeCategory,
         IncomeExpenseRecord, PriceSnapshot,
+        ExpenseTemplate, IncomeTemplate, MonthlyBudgetRecord,
     )
     from app.documents.models import AssetDocument  # noqa: F401
     from app.notifications.models import Notification, NotificationPreference  # noqa: F401

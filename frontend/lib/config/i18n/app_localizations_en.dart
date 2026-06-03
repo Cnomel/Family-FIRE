@@ -649,4 +649,97 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get systemDefault => 'System Default';
+
+  @override
+  String get appearance => 'Appearance';
+
+  @override
+  String get security => 'Security';
+
+  @override
+  String get notificationSettings => 'Notification Settings';
+
+  @override
+  String get adminFunctions => 'Admin Functions';
+
+  @override
+  String get userManagement => 'User Management';
+
+  @override
+  String get version => 'Version';
+
+  @override
+  String get userAgreement => 'User Agreement';
+
+  @override
+  String get privacyPolicy => 'Privacy Policy';
+
+  @override
+  String get checkUpdate => 'Check Update';
+
+  @override
+  String get currentVersion => 'Current Version';
+
+  @override
+  String get latestVersion => 'Already the latest version';
+
+  @override
+  String get confirmLogout => 'Confirm Logout';
+
+  @override
+  String get confirmLogoutMessage => 'Are you sure you want to logout?';
+
+  @override
+  String get hideAmountDisplay => 'Hide amount display';
+
+  @override
+  String get biometricSubtitle => 'Face ID / Fingerprint';
+
+  @override
+  String get budgetManagement => 'Budget Management';
+
+  @override
+  String get budgetTemplates => 'Budget Items';
+
+  @override
+  String get yearlyStats => 'Yearly Stats';
+
+  @override
+  String get monthlyBudget => 'Monthly Budget';
+
+  @override
+  String get expenseTemplates => 'Expense Items';
+
+  @override
+  String get incomeTemplates => 'Income Items';
+
+  @override
+  String get systemFixedItems => 'System Fixed Items';
+
+  @override
+  String get customFixedItems => 'Custom Fixed Items';
+
+  @override
+  String get temporaryItems => 'Temporary Items';
+
+  @override
+  String get expectedRange => 'Expected Range';
+
+  @override
+  String get upgradeToFixed => 'Upgrade to Fixed';
+
+  @override
+  String get monthlyTrend => 'Monthly Trend';
+
+  @override
+  String get monthlyDetail => 'Monthly Detail';
+
+  @override
+  String get categoryBreakdown => 'Category Breakdown';
+
+  @override
+  String get totalNet => 'Total Net';
+
+  @override
+  String get averageSavingsRate => 'Average Savings Rate';
 }

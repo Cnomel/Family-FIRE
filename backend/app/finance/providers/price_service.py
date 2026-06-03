@@ -276,7 +276,6 @@ class ChinaFundProvider(PriceProvider):
     @staticmethod
     def _fetch_fund_nav(symbol: str) -> dict[str, Any] | None:
         """获取基金最新净值。"""
-        import json
         try:
             ctx = ssl._create_unverified_context()
             # 使用东方财富的基金详情API获取最新净值

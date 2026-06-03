@@ -649,4 +649,97 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get systemDefault => '跟随系统';
+
+  @override
+  String get appearance => '外观';
+
+  @override
+  String get security => '安全';
+
+  @override
+  String get notificationSettings => '通知设置';
+
+  @override
+  String get adminFunctions => '管理员功能';
+
+  @override
+  String get userManagement => '用户管理';
+
+  @override
+  String get version => '版本';
+
+  @override
+  String get userAgreement => '用户协议';
+
+  @override
+  String get privacyPolicy => '隐私政策';
+
+  @override
+  String get checkUpdate => '检查更新';
+
+  @override
+  String get currentVersion => '当前版本';
+
+  @override
+  String get latestVersion => '已是最新版本';
+
+  @override
+  String get confirmLogout => '确认退出';
+
+  @override
+  String get confirmLogoutMessage => '确认退出登录？';
+
+  @override
+  String get hideAmountDisplay => '隐藏金额显示';
+
+  @override
+  String get biometricSubtitle => 'Face ID / 指纹';
+
+  @override
+  String get budgetManagement => '收支管理';
+
+  @override
+  String get budgetTemplates => '收支项管理';
+
+  @override
+  String get yearlyStats => '年度统计';
+
+  @override
+  String get monthlyBudget => '月度预算';
+
+  @override
+  String get expenseTemplates => '支出项';
+
+  @override
+  String get incomeTemplates => '收入项';
+
+  @override
+  String get systemFixedItems => '系统固定项';
+
+  @override
+  String get customFixedItems => '自定义固定项';
+
+  @override
+  String get temporaryItems => '临时项';
+
+  @override
+  String get expectedRange => '预期范围';
+
+  @override
+  String get upgradeToFixed => '升级为固定项';
+
+  @override
+  String get monthlyTrend => '月度趋势';
+
+  @override
+  String get monthlyDetail => '月度明细';
+
+  @override
+  String get categoryBreakdown => '分类统计';
+
+  @override
+  String get totalNet => '总结余';
+
+  @override
+  String get averageSavingsRate => '平均储蓄率';
 }

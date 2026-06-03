@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
 import '../api/api_exception.dart';
+import '../network/network_service.dart';
 import '../storage/secure_storage.dart';
 
 /// 用户信息模型
@@ -112,6 +113,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// 登录
   Future<void> login({required String identifier, required String password}) async {
     state = state.copyWith(isLoading: true, error: null);
+
+    // 检查网络连接
+    final networkService = _ref.read(networkServiceProvider);
+    if (!networkService.isConnected) {
+      state = state.copyWith(
+        isLoading: false,
+        error: '当前无网络连接，请检查网络设置',
+      );
+      throw ApiException(
+        code: 'NETWORK_UNREACHABLE',
+        message: '当前无网络连接，请检查网络设置',
+      );
+    }
+
     try {
       final client = _ref.read(apiClientProvider);
       final response = await client.post('/api/auth/login', data: {

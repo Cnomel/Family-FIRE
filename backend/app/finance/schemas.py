@@ -129,6 +129,133 @@ class CategoryResponse(BaseModel):
 
 
 # ============================================================
+# Budget Template Schemas
+# ============================================================
+
+class CreateExpenseTemplateRequest(BaseModel):
+    """Create a new expense template."""
+    name: str = Field(min_length=1, max_length=100, description="支出项名称")
+    category_id: str | None = Field(default=None, description="关联分类ID")
+    icon: str | None = Field(default=None, max_length=50, description="图标标识")
+    expected_min: float = Field(default=0, ge=0, description="预期最小值")
+    expected_max: float = Field(default=0, ge=0, description="预期最大值")
+    is_fixed: bool = Field(default=True, description="是否固定项")
+    sort_order: int = Field(default=0, description="排序")
+
+
+class UpdateExpenseTemplateRequest(BaseModel):
+    """Update an expense template."""
+    name: str | None = None
+    category_id: str | None = None
+    icon: str | None = None
+    expected_min: float | None = None
+    expected_max: float | None = None
+    is_fixed: bool | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
+
+
+class ExpenseTemplateResponse(BaseModel):
+    """Expense template information."""
+    id: str
+    name: str
+    category_id: str | None = None
+    icon: str | None = None
+    expected_min: float = 0
+    expected_max: float = 0
+    is_fixed: bool = True
+    is_system: bool = False
+    sort_order: int = 0
+    is_active: bool = True
+    created_at: datetime
+
+
+class CreateIncomeTemplateRequest(BaseModel):
+    """Create a new income template."""
+    name: str = Field(min_length=1, max_length=100, description="收入项名称")
+    category_id: str | None = Field(default=None, description="关联分类ID")
+    icon: str | None = Field(default=None, max_length=50, description="图标标识")
+    is_fixed: bool = Field(default=True, description="是否固定项")
+    sort_order: int = Field(default=0, description="排序")
+
+
+class UpdateIncomeTemplateRequest(BaseModel):
+    """Update an income template."""
+    name: str | None = None
+    category_id: str | None = None
+    icon: str | None = None
+    is_fixed: bool | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
+
+
+class IncomeTemplateResponse(BaseModel):
+    """Income template information."""
+    id: str
+    name: str
+    category_id: str | None = None
+    icon: str | None = None
+    is_fixed: bool = True
+    is_system: bool = False
+    sort_order: int = 0
+    is_active: bool = True
+    created_at: datetime
+
+
+# ============================================================
+# Monthly Budget Schemas
+# ============================================================
+
+class SaveMonthlyRecordRequest(BaseModel):
+    """Save a monthly budget record."""
+    template_id: str = Field(description="模板ID")
+    template_type: str = Field(pattern="^(income|expense)$", description="类型")
+    actual_amount: float = Field(ge=0, description="实际金额")
+    notes: str | None = Field(default=None, max_length=500, description="备注")
+
+
+class BatchSaveMonthlyRequest(BaseModel):
+    """Batch save monthly budget records."""
+    records: list[SaveMonthlyRecordRequest] = Field(description="记录列表")
+
+
+class MonthlyRecordResponse(BaseModel):
+    """Monthly budget record."""
+    id: str
+    template_id: str
+    template_type: str
+    template_name: str
+    template_icon: str | None = None
+    expected_min: float = 0
+    expected_max: float = 0
+    actual_amount: float = 0
+    notes: str | None = None
+    created_at: datetime
+
+
+class MonthlySummaryResponse(BaseModel):
+    """Monthly budget summary."""
+    year_month: str
+    total_income: float
+    total_expense: float
+    net: float
+    savings_rate: float
+    income_records: list[MonthlyRecordResponse]
+    expense_records: list[MonthlyRecordResponse]
+
+
+class YearlySummaryResponse(BaseModel):
+    """Yearly budget summary."""
+    year: int
+    total_income: float
+    total_expense: float
+    total_net: float
+    average_savings_rate: float
+    monthly_data: list[dict[str, Any]]
+    by_category: list[dict[str, Any]]
+
+
+# ============================================================
 # Transaction Schemas
 # ============================================================
 

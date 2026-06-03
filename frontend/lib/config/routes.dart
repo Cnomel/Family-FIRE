@@ -12,14 +12,16 @@ import '../features/assets/asset_list_page.dart';
 import '../features/assets/asset_detail_page.dart';
 import '../features/assets/asset_edit_page.dart';
 import '../features/assets/asset_filter_page.dart';
+import '../features/assets/category_manage_page.dart';
 import '../features/assets/relationship_page.dart';
 import '../features/assets/consumable_page.dart';
 import '../features/assets/scan_page.dart';
 import '../features/assets/insurance_gaps_page.dart';
 import '../features/finance/fire_dashboard_page.dart';
 import '../features/finance/liability_page.dart';
-import '../features/finance/income_expense_page.dart';
-import '../features/finance/income_expense_stats_page.dart';
+import '../features/finance/monthly_budget_page.dart';
+import '../features/finance/budget_templates_page.dart';
+import '../features/finance/yearly_stats_page.dart';
 import '../features/finance/portfolio_page.dart';
 import '../features/finance/price_chart_page.dart';
 import '../features/finance/monte_carlo_page.dart';
@@ -37,6 +39,9 @@ import '../features/family/family_detail_page.dart';
 import '../features/family/invite_page.dart';
 import '../features/settings/profile_page.dart';
 import '../features/settings/settings_page.dart';
+import '../features/settings/terms_page.dart';
+import '../features/settings/privacy_policy_page.dart';
+import '../features/settings/user_guide_page.dart';
 import '../features/admin/admin_users_page.dart';
 
 /// Auth状态的Listenable包装，用于GoRouter refreshListenable
@@ -94,6 +99,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/assets/filter', builder: (_, _) => const AssetFilterPage()),
       GoRoute(path: '/assets/scan', builder: (_, _) => const ScanPage()),
       GoRoute(path: '/assets/insurance-gaps', builder: (_, _) => const InsuranceGapsPage()),
+      GoRoute(path: '/assets/categories', builder: (_, _) => const CategoryManagePage()),
       GoRoute(path: '/assets/:id', builder: (_, state) => AssetDetailPage(assetId: state.pathParameters['id']!)),
       GoRoute(path: '/assets/:id/edit', builder: (_, state) => AssetEditPage(assetId: state.pathParameters['id'])),
       GoRoute(path: '/assets/:id/relationships', builder: (_, state) => RelationshipPage(assetId: state.pathParameters['id']!)),
@@ -102,8 +108,9 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Finance
       GoRoute(path: '/finance/liabilities', builder: (_, _) => const LiabilityPage()),
-      GoRoute(path: '/finance/income-expense', builder: (_, _) => const IncomeExpensePage()),
-      GoRoute(path: '/finance/income-expense/stats', builder: (_, _) => const IncomeExpenseStatsPage()),
+      GoRoute(path: '/finance/budget', builder: (_, _) => const MonthlyBudgetPage()),
+      GoRoute(path: '/finance/budget-templates', builder: (_, _) => const BudgetTemplatesPage()),
+      GoRoute(path: '/finance/yearly-stats', builder: (_, _) => const YearlyStatsPage()),
       GoRoute(path: '/finance/portfolio', builder: (_, _) => const PortfolioPage()),
       GoRoute(path: '/finance/price/:assetId', builder: (_, state) => PriceChartPage(assetId: state.pathParameters['assetId']!)),
       GoRoute(path: '/finance/monte-carlo', builder: (_, _) => const MonteCarloPage()),
@@ -126,6 +133,9 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Settings
       GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
+      GoRoute(path: '/settings/terms', builder: (_, _) => const TermsPage()),
+      GoRoute(path: '/settings/privacy', builder: (_, _) => const PrivacyPolicyPage()),
+      GoRoute(path: '/settings/guide', builder: (_, _) => const UserGuidePage()),
 
       // Admin
       GoRoute(path: '/admin/users', builder: (_, _) => const AdminUsersPage()),

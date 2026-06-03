@@ -1,7 +1,6 @@
 """Asset management service with search, stats, and duplicate detection."""
 
 import uuid
-from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import and_, func, or_
@@ -10,6 +9,7 @@ from sqlmodel import select
 
 from app.assets.models import (
     Asset,
+    AssetCategory,
     AssetFinancial,
     AssetLifecycle,
     AssetMetadataAccount,
@@ -30,8 +30,11 @@ from app.assets.schemas import (
     AssetResponse,
     AssetStatsResponse,
     BulkActionRequest,
+    CategoryResponse,
     CreateAssetRequest,
+    CreateCategoryRequest,
     UpdateAssetRequest,
+    UpdateCategoryRequest,
 )
 from app.common.exceptions import DuplicateError, NotFoundError, PermissionDeniedError
 from app.common.logging import get_logger
@@ -240,7 +243,15 @@ async def _sync_asset_financial(db: AsyncSession, asset_id: str) -> None:
         await db.flush()
 
 
-def _asset_to_response(asset: Asset, financial: AssetFinancial | None = None) -> AssetResponse:
+def _asset_to_response(
+    asset: Asset,
+    financial: AssetFinancial | None = None,
+    creator_name: str | None = None,
+    instrument_type: str | None = None,
+    category_name: str | None = None,
+    category_icon: str | None = None,
+    category_color: str | None = None,
+) -> AssetResponse:
     """Convert Asset model to response."""
     tags = asset.tags if asset.tags else None
     return AssetResponse(
@@ -262,6 +273,13 @@ def _asset_to_response(asset: Asset, financial: AssetFinancial | None = None) ->
             total_cost_of_ownership=financial.total_cost_of_ownership if financial else 0,
             monthly_carrying_cost=financial.monthly_carrying_cost if financial else 0,
         ) if financial else None,
+        instrument_type=instrument_type,
+        category_id=asset.category_id,
+        category_name=category_name,
+        category_icon=category_icon,
+        category_color=category_color,
+        created_by=asset.created_by,
+        created_by_name=creator_name,
         created_at=asset.created_at,
     )
 
@@ -358,12 +376,12 @@ async def create_asset(
         if shares and shares > 0:
             # Calculate price per share
             price_per_share = data.purchase_price / shares if shares > 0 else 0
-            
+
             # 移除时区信息，确保是 naive datetime
             tx_date = data.purchase_date or utcnow()
             if tx_date.tzinfo:
                 tx_date = tx_date.replace(tzinfo=None)
-            
+
             transaction = Transaction(
                 id=str(uuid.uuid4()),
                 asset_id=asset_id,
@@ -439,6 +457,52 @@ async def get_asset_detail(
                        if not k.startswith("_") and k not in ("id", "asset_id", "created_at", "updated_at")}
             break
 
+    # Get creator name
+    creator_name = None
+    if asset.created_by:
+        from app.users.models import User
+        user_stmt = select(User.full_name, User.username).where(User.id == asset.created_by)
+        user_result = await db.execute(user_stmt)
+        user_row = user_result.first()
+        if user_row:
+            creator_name = user_row.full_name or user_row.username
+
+    # Get category info
+    category_name = None
+    category_icon = None
+    category_color = None
+    if asset.category_id:
+        cat_stmt = select(AssetCategory).where(AssetCategory.id == asset.category_id)
+        cat_result = await db.execute(cat_stmt)
+        category = cat_result.scalar_one_or_none()
+        if category:
+            category_name = category.name
+            category_icon = category.icon
+            category_color = category.color
+
+    # Get relationships
+    from app.assets.models import AssetRelationship
+    rel_stmt = select(AssetRelationship).where(
+        or_(
+            AssetRelationship.source_asset_id == asset_id,
+            AssetRelationship.target_asset_id == asset_id,
+        )
+    )
+    rel_result = await db.execute(rel_stmt)
+    relationships = rel_result.scalars().all()
+
+    rel_list = []
+    for rel in relationships:
+        rel_list.append({
+            "id": rel.id,
+            "source_asset_id": rel.source_asset_id,
+            "target_asset_id": rel.target_asset_id,
+            "type": rel.type,
+            "is_optional": rel.is_optional,
+            "lifecycle_linked": rel.lifecycle_linked,
+            "extra_data": rel.extra_data,
+        })
+
     return AssetDetailResponse(
         id=asset.id,
         name=asset.name,
@@ -461,6 +525,13 @@ async def get_asset_detail(
         ) if financial else None,
         metadata=metadata,
         metadata_type=metadata_type,
+        relationships=rel_list,
+        category_id=asset.category_id,
+        category_name=category_name,
+        category_icon=category_icon,
+        category_color=category_color,
+        created_by=asset.created_by,
+        created_by_name=creator_name,
         created_at=asset.created_at,
     )
 
@@ -511,13 +582,59 @@ async def list_assets(
     result = await db.execute(stmt)
     assets = result.scalars().all()
 
-    # Get financial info for each asset
+    # Get unique creator IDs
+    creator_ids = list({asset.created_by for asset in assets if asset.created_by})
+
+    # Batch query creator names
+    creator_names = {}
+    if creator_ids:
+        from app.users.models import User
+        user_stmt = select(User.id, User.full_name, User.username).where(User.id.in_(creator_ids))
+        user_result = await db.execute(user_stmt)
+        for row in user_result.all():
+            creator_names[row.id] = row.full_name or row.username
+
+    # Get unique category IDs
+    category_ids = list({asset.category_id for asset in assets if asset.category_id})
+
+    # Batch query category info
+    category_info = {}
+    if category_ids:
+        cat_stmt = select(AssetCategory).where(AssetCategory.id.in_(category_ids))
+        cat_result = await db.execute(cat_stmt)
+        for cat in cat_result.scalars().all():
+            category_info[cat.id] = {
+                'name': cat.name,
+                'icon': cat.icon,
+                'color': cat.color,
+            }
+
+    # Get financial info and metadata for each asset
     responses = []
     for asset in assets:
         fin_stmt = select(AssetFinancial).where(AssetFinancial.asset_id == asset.id)
         fin_result = await db.execute(fin_stmt)
         financial = fin_result.scalar_one_or_none()
-        responses.append(_asset_to_response(asset, financial))
+
+        # Get instrument_type from metadata for financial assets
+        instrument_type = None
+        if asset.nature == 'financial':
+            meta_stmt = select(AssetMetadataFinancial.instrument_type).where(
+                AssetMetadataFinancial.asset_id == asset.id
+            )
+            meta_result = await db.execute(meta_stmt)
+            instrument_type_row = meta_result.scalar_one_or_none()
+            if instrument_type_row:
+                instrument_type = instrument_type_row
+
+        creator_name = creator_names.get(asset.created_by)
+        cat_info = category_info.get(asset.category_id, {})
+        responses.append(_asset_to_response(
+            asset, financial, creator_name, instrument_type,
+            category_name=cat_info.get('name'),
+            category_icon=cat_info.get('icon'),
+            category_color=cat_info.get('color'),
+        ))
 
     return AssetListResponse(
         assets=responses,
@@ -550,6 +667,8 @@ async def update_asset(
         asset.name = data.name
     if data.description is not None:
         asset.description = data.description
+    if data.category_id is not None:
+        asset.category_id = data.category_id
     if data.nature is not None:
         asset.nature = data.nature
     if data.utility is not None:
@@ -573,7 +692,25 @@ async def update_asset(
     fin_result = await db.execute(fin_stmt)
     financial = fin_result.scalar_one_or_none()
 
-    return _asset_to_response(asset, financial)
+    # Get category info
+    category_name = None
+    category_icon = None
+    category_color = None
+    if asset.category_id:
+        cat_stmt = select(AssetCategory).where(AssetCategory.id == asset.category_id)
+        cat_result = await db.execute(cat_stmt)
+        category = cat_result.scalar_one_or_none()
+        if category:
+            category_name = category.name
+            category_icon = category.icon
+            category_color = category.color
+
+    return _asset_to_response(
+        asset, financial,
+        category_name=category_name,
+        category_icon=category_icon,
+        category_color=category_color,
+    )
 
 
 async def delete_asset(
@@ -755,3 +892,206 @@ async def get_asset_stats(
         by_ownership=by_ownership,
         by_liquidity=by_liquidity,
     )
+
+
+# ============================================================
+# Category Management
+# ============================================================
+
+async def create_category(
+    db: AsyncSession, family_id: str, user_id: str, data: CreateCategoryRequest
+) -> CategoryResponse:
+    """Create a new asset category."""
+    await _verify_family_member(db, family_id, user_id)
+
+    category = AssetCategory(
+        id=str(uuid.uuid4()),
+        family_id=family_id,
+        name=data.name,
+        icon=data.icon,
+        color=data.color,
+        sort_order=0,
+        is_system=False,
+        created_by=user_id,
+    )
+    db.add(category)
+    await db.flush()
+
+    return CategoryResponse(
+        id=category.id,
+        name=category.name,
+        icon=category.icon,
+        color=category.color,
+        sort_order=category.sort_order,
+        is_system=category.is_system,
+        asset_count=0,
+        total_value=0,
+        created_at=category.created_at,
+    )
+
+
+async def list_categories(
+    db: AsyncSession, family_id: str, user_id: str
+) -> list[CategoryResponse]:
+    """List all asset categories for a family."""
+    await _verify_family_member(db, family_id, user_id)
+
+    stmt = (
+        select(AssetCategory)
+        .where(AssetCategory.family_id == family_id)
+        .order_by(AssetCategory.sort_order, AssetCategory.created_at)
+    )
+    result = await db.execute(stmt)
+    categories = result.scalars().all()
+
+    responses = []
+    for cat in categories:
+        # Count assets in this category
+        count_stmt = select(func.count()).select_from(Asset).where(
+            Asset.category_id == cat.id,
+            Asset.status == "active",
+        )
+        count_result = await db.execute(count_stmt)
+        asset_count = count_result.scalar() or 0
+
+        # Sum value of assets in this category
+        value_stmt = (
+            select(func.coalesce(func.sum(AssetFinancial.current_value), 0))
+            .join(Asset, Asset.id == AssetFinancial.asset_id)
+            .where(
+                Asset.category_id == cat.id,
+                Asset.status == "active",
+            )
+        )
+        value_result = await db.execute(value_stmt)
+        total_value = value_result.scalar() or 0
+
+        responses.append(CategoryResponse(
+            id=cat.id,
+            name=cat.name,
+            icon=cat.icon,
+            color=cat.color,
+            sort_order=cat.sort_order,
+            is_system=cat.is_system,
+            asset_count=asset_count,
+            total_value=total_value,
+            created_at=cat.created_at,
+        ))
+
+    return responses
+
+
+async def update_category(
+    db: AsyncSession, category_id: str, family_id: str, user_id: str, data: UpdateCategoryRequest
+) -> CategoryResponse:
+    """Update an asset category."""
+    await _verify_family_member(db, family_id, user_id)
+
+    stmt = select(AssetCategory).where(
+        AssetCategory.id == category_id,
+        AssetCategory.family_id == family_id,
+    )
+    result = await db.execute(stmt)
+    category = result.scalar_one_or_none()
+
+    if not category:
+        raise NotFoundError("分类", category_id)
+
+    if category.is_system:
+        raise PermissionDeniedError("系统预设分类不可修改")
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(category, field, value)
+
+    await db.flush()
+
+    # Get updated stats
+    count_stmt = select(func.count()).select_from(Asset).where(
+        Asset.category_id == category.id,
+        Asset.status == "active",
+    )
+    count_result = await db.execute(count_stmt)
+    asset_count = count_result.scalar() or 0
+
+    return CategoryResponse(
+        id=category.id,
+        name=category.name,
+        icon=category.icon,
+        color=category.color,
+        sort_order=category.sort_order,
+        is_system=category.is_system,
+        asset_count=asset_count,
+        total_value=0,
+        created_at=category.created_at,
+    )
+
+
+async def delete_category(
+    db: AsyncSession, category_id: str, family_id: str, user_id: str
+) -> None:
+    """Delete an asset category."""
+    await _verify_family_member(db, family_id, user_id)
+
+    stmt = select(AssetCategory).where(
+        AssetCategory.id == category_id,
+        AssetCategory.family_id == family_id,
+    )
+    result = await db.execute(stmt)
+    category = result.scalar_one_or_none()
+
+    if not category:
+        raise NotFoundError("分类", category_id)
+
+    if category.is_system:
+        raise PermissionDeniedError("系统预设分类不可删除")
+
+    # Remove category from assets
+    update_stmt = (
+        select(Asset)
+        .where(Asset.category_id == category_id)
+    )
+    assets_result = await db.execute(update_stmt)
+    assets = assets_result.scalars().all()
+    for asset in assets:
+        asset.category_id = None
+
+    await db.delete(category)
+    await db.flush()
+
+
+async def init_system_categories(db: AsyncSession, family_id: str) -> None:
+    """Initialize system preset categories for a family."""
+    # Check if already initialized
+    stmt = select(AssetCategory).where(
+        AssetCategory.family_id == family_id,
+        AssetCategory.is_system.is_(True),
+    )
+    result = await db.execute(stmt)
+    if result.scalar_one_or_none():
+        return
+
+    system_categories = [
+        {"name": "投资", "icon": "trending_up", "color": "#4CAF50", "sort_order": 1},
+        {"name": "房产", "icon": "home", "color": "#2196F3", "sort_order": 2},
+        {"name": "车辆", "icon": "directions_car", "color": "#FF9800", "sort_order": 3},
+        {"name": "保险", "icon": "security", "color": "#9C27B0", "sort_order": 4},
+        {"name": "收藏", "icon": "diamond", "color": "#E91E63", "sort_order": 5},
+        {"name": "数码", "icon": "devices", "color": "#00BCD4", "sort_order": 6},
+        {"name": "家居", "icon": "weekend", "color": "#795548", "sort_order": 7},
+        {"name": "其他", "icon": "category", "color": "#607D8B", "sort_order": 8},
+    ]
+
+    for cat_data in system_categories:
+        category = AssetCategory(
+            id=str(uuid.uuid4()),
+            family_id=family_id,
+            name=cat_data["name"],
+            icon=cat_data["icon"],
+            color=cat_data["color"],
+            sort_order=cat_data["sort_order"],
+            is_system=True,
+            created_by=None,
+        )
+        db.add(category)
+
+    await db.flush()

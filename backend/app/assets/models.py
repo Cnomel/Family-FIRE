@@ -9,6 +9,24 @@ from sqlmodel import Field
 from app.common.models import TimestampMixin
 
 # ============================================================
+# Asset Categories (User-defined)
+# ============================================================
+
+class AssetCategory(TimestampMixin, table=True):
+    """User-defined asset categories."""
+    __tablename__ = "asset_categories"
+
+    id: str | None = Field(default=None, primary_key=True, max_length=36)
+    family_id: str = Field(max_length=36, index=True, description="所属家庭ID")
+    name: str = Field(max_length=50, description="分类名称")
+    icon: str | None = Field(default=None, max_length=50, description="图标标识")
+    color: str | None = Field(default=None, max_length=20, description="颜色代码")
+    sort_order: int = Field(default=0, description="排序")
+    is_system: bool = Field(default=False, description="是否系统预设")
+    created_by: str | None = Field(default=None, max_length=36, description="创建者用户ID")
+
+
+# ============================================================
 # Asset Main Table
 # ============================================================
 
@@ -22,7 +40,8 @@ class Asset(TimestampMixin, table=True):
 
     id: str | None = Field(default=None, primary_key=True, max_length=36)
     family_id: str = Field(max_length=36, index=True, description="所属家庭ID")
-    created_by: str = Field(max_length=36, description="创建者用户ID")
+    created_by: str | None = Field(default=None, max_length=36, description="创建者用户ID")
+    category_id: str | None = Field(default=None, max_length=36, index=True, description="用户自定义分类ID")
     name: str = Field(max_length=200, description="资产名称")
     description: str | None = Field(default=None, sa_column=Column(Text), description="描述")
 

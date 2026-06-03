@@ -25,6 +25,9 @@ dependencies:
   # Security
   flutter_secure_storage: ^9.2.4
 
+  # Local cache
+  shared_preferences: ^2.5.0
+
   # Local database (offline)
   drift: ^2.24.0
   sqlite3_flutter_libs: ^0.5.28

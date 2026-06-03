@@ -119,3 +119,13 @@ uv run python scripts/init_db.py
 ### Q: 如何添加新的通知类型？
 1. 在 `backend/app/notifications/service.py` 添加通知逻辑
 2. 在 `backend/app/tasks/` 添加定时任务（如需要）
+
+### Q: 如何初始化收支模板？
+```bash
+cd backend
+# 初始化数据库（包含新表）
+uv run python scripts/init_db.py
+
+# 为现有家庭创建系统预设收支模板
+uv run python scripts/seed_budget_templates.py
+```

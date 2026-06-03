@@ -1,6 +1,5 @@
 """Finance management API router."""
 
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,17 +10,22 @@ from app.database import get_db
 from app.families.dependencies import verify_family_member
 from app.finance import service as finance_service
 from app.finance.schemas import (
+    BatchSaveMonthlyRequest,
     CostBasisInfo,
-    CreateIncomeExpenseRequest,
+    CreateExpenseTemplateRequest,
+    CreateIncomeTemplateRequest,
     CreateLiabilityRequest,
     CreateTransactionRequest,
-    IncomeExpenseResponse,
-    IncomeExpenseSummary,
+    ExpenseTemplateResponse,
+    IncomeTemplateResponse,
     LiabilityListResponse,
     LiabilityResponse,
+    MonthlySummaryResponse,
     TransactionResponse,
-    UpdateIncomeExpenseRequest,
+    UpdateExpenseTemplateRequest,
+    UpdateIncomeTemplateRequest,
     UpdateLiabilityRequest,
+    YearlySummaryResponse,
 )
 
 router = APIRouter()
@@ -97,103 +101,203 @@ async def delete_liability(
 
 
 # ============================================================
-# Income/Expense Endpoints
+# Expense Template Endpoints
 # ============================================================
 
 @router.post(
-    "/income-expense",
-    response_model=SuccessResponse[IncomeExpenseResponse],
+    "/expense-templates",
+    response_model=SuccessResponse[ExpenseTemplateResponse],
     status_code=201,
-    summary="记录收支",
-    description="记录收入或支出",
+    summary="创建支出项模板",
+    description="创建新的支出项模板",
 )
-async def create_income_expense(
-        data: CreateIncomeExpenseRequest,
+async def create_expense_template(
+    data: CreateExpenseTemplateRequest,
     current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
     family_id: str = Depends(verify_family_member),
 ):
-    record = await finance_service.create_income_expense(db, family_id, current_user.id, data)
-    return SuccessResponse(data=record, message="记录成功")
+    template = await finance_service.create_expense_template(db, family_id, current_user.id, data)
+    return SuccessResponse(data=template, message="支出项创建成功")
 
 
 @router.get(
-    "/income-expense",
-    response_model=SuccessResponse[dict],
-    summary="收支列表",
-    description="获取收支记录列表（支持筛选）",
+    "/expense-templates",
+    response_model=SuccessResponse[list],
+    summary="支出项模板列表",
+    description="获取所有支出项模板",
 )
-async def list_income_expense(
-        current_user: CurrentUser = None,
+async def list_expense_templates(
+    current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
-    type: str | None = None,
-    start_date: datetime | None = None,
-    end_date: datetime | None = None,
-    page: int = 1,
-    page_size: int = 20,
     family_id: str = Depends(verify_family_member),
 ):
-    result = await finance_service.list_income_expense(
-        db, family_id, current_user.id,
-        record_type=type, start_date=start_date, end_date=end_date,
-        page=page, page_size=page_size,
-    )
-    return SuccessResponse(data=result)
-
-
-@router.get(
-    "/income-expense/summary",
-    response_model=SuccessResponse[IncomeExpenseSummary],
-    summary="收支汇总",
-    description="获取收支汇总统计",
-)
-async def get_income_expense_summary(
-        current_user: CurrentUser = None,
-    db: AsyncSession = Depends(get_db),
-    start_date: datetime | None = None,
-    end_date: datetime | None = None,
-    family_id: str = Depends(verify_family_member),
-):
-    summary = await finance_service.get_income_expense_summary(
-        db, family_id, current_user.id,
-        start_date=start_date, end_date=end_date,
-    )
-    return SuccessResponse(data=summary)
+    templates = await finance_service.list_expense_templates(db, family_id, current_user.id)
+    return SuccessResponse(data=templates)
 
 
 @router.put(
-    "/income-expense/{record_id}",
-    response_model=SuccessResponse[IncomeExpenseResponse],
-    summary="更新收支",
-    description="更新收支记录",
+    "/expense-templates/{template_id}",
+    response_model=SuccessResponse[ExpenseTemplateResponse],
+    summary="更新支出项模板",
+    description="更新支出项模板信息",
 )
-async def update_income_expense(
-    record_id: str,
-    data: UpdateIncomeExpenseRequest,
+async def update_expense_template(
+    template_id: str,
+    data: UpdateExpenseTemplateRequest,
     current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
     family_id: str = Depends(verify_family_member),
 ):
-    record = await finance_service.update_income_expense(
-        db, record_id, family_id, current_user.id, data,
+    template = await finance_service.update_expense_template(
+        db, template_id, family_id, current_user.id, data,
     )
-    return SuccessResponse(data=record, message="更新成功")
+    return SuccessResponse(data=template, message="更新成功")
 
 
 @router.delete(
-    "/income-expense/{record_id}",
+    "/expense-templates/{template_id}",
     response_model=MessageResponse,
-    summary="删除收支",
-    description="删除收支记录",
+    summary="删除支出项模板",
+    description="删除支出项模板（有数据时禁止删除）",
 )
-async def delete_income_expense(
-    record_id: str,
+async def delete_expense_template(
+    template_id: str,
     current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
     family_id: str = Depends(verify_family_member),
 ):
-    await finance_service.delete_income_expense(db, record_id, family_id, current_user.id)
-    return MessageResponse(message="记录已删除")
+    await finance_service.delete_expense_template(db, template_id, family_id, current_user.id)
+    return MessageResponse(message="支出项已删除")
+
+
+# ============================================================
+# Income Template Endpoints
+# ============================================================
+
+@router.post(
+    "/income-templates",
+    response_model=SuccessResponse[IncomeTemplateResponse],
+    status_code=201,
+    summary="创建收入项模板",
+    description="创建新的收入项模板",
+)
+async def create_income_template(
+    data: CreateIncomeTemplateRequest,
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
+):
+    template = await finance_service.create_income_template(db, family_id, current_user.id, data)
+    return SuccessResponse(data=template, message="收入项创建成功")
+
+
+@router.get(
+    "/income-templates",
+    response_model=SuccessResponse[list],
+    summary="收入项模板列表",
+    description="获取所有收入项模板",
+)
+async def list_income_templates(
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
+):
+    templates = await finance_service.list_income_templates(db, family_id, current_user.id)
+    return SuccessResponse(data=templates)
+
+
+@router.put(
+    "/income-templates/{template_id}",
+    response_model=SuccessResponse[IncomeTemplateResponse],
+    summary="更新收入项模板",
+    description="更新收入项模板信息",
+)
+async def update_income_template(
+    template_id: str,
+    data: UpdateIncomeTemplateRequest,
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
+):
+    template = await finance_service.update_income_template(
+        db, template_id, family_id, current_user.id, data,
+    )
+    return SuccessResponse(data=template, message="更新成功")
+
+
+@router.delete(
+    "/income-templates/{template_id}",
+    response_model=MessageResponse,
+    summary="删除收入项模板",
+    description="删除收入项模板（有数据时禁止删除）",
+)
+async def delete_income_template(
+    template_id: str,
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
+):
+    await finance_service.delete_income_template(db, template_id, family_id, current_user.id)
+    return MessageResponse(message="收入项已删除")
+
+
+# ============================================================
+# Monthly Budget Endpoints
+# ============================================================
+
+@router.get(
+    "/monthly/{year_month}",
+    response_model=SuccessResponse[MonthlySummaryResponse],
+    summary="月度预算记录",
+    description="获取某月所有收支记录",
+)
+async def get_monthly_records(
+    year_month: str,
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
+):
+    result = await finance_service.get_monthly_records(db, family_id, current_user.id, year_month)
+    return SuccessResponse(data=result)
+
+
+@router.post(
+    "/monthly/{year_month}",
+    response_model=MessageResponse,
+    status_code=201,
+    summary="保存月度记录",
+    description="批量保存某月的收支记录",
+)
+async def save_monthly_records(
+    year_month: str,
+    data: BatchSaveMonthlyRequest,
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
+):
+    await finance_service.save_monthly_records(db, family_id, current_user.id, year_month, data)
+    return MessageResponse(message="保存成功")
+
+
+# ============================================================
+# Yearly Statistics Endpoints
+# ============================================================
+
+@router.get(
+    "/yearly/{year}/summary",
+    response_model=SuccessResponse[YearlySummaryResponse],
+    summary="年度统计",
+    description="获取年度收支统计",
+)
+async def get_yearly_summary(
+    year: int,
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
+):
+    result = await finance_service.get_yearly_summary(db, family_id, current_user.id, year)
+    return SuccessResponse(data=result)
 
 
 # ============================================================

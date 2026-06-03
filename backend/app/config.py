@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     API_PREFIX: str = "/api"
     TIMEZONE: str = "Asia/Shanghai"
+    BASE_URL: str = "http://localhost:8000"  # 用于生成下载链接
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/family_fire"

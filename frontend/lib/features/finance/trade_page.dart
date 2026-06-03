@@ -6,6 +6,7 @@ import '../../core/api/api_exception.dart';
 import '../../shared/formatters/currency.dart';
 import '../../shared/formatters/date.dart';
 import '../../shared/formatters/number.dart';
+import '../../shared/theme/colors.dart';
 import '../../shared/widgets/amount_text.dart';
 
 class TradePage extends ConsumerStatefulWidget {
@@ -272,7 +273,7 @@ class _TradePageState extends ConsumerState<TradePage> {
             icon: const Icon(Icons.add_shopping_cart),
             label: const Text('买入'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.loss,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
@@ -285,7 +286,7 @@ class _TradePageState extends ConsumerState<TradePage> {
             icon: const Icon(Icons.sell),
             label: const Text('卖出'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
+              backgroundColor: AppColors.profit,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),

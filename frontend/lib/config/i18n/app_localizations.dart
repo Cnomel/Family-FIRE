@@ -1381,6 +1381,192 @@ abstract class AppLocalizations {
   /// In zh, this message translates to:
   /// **'跟随系统'**
   String get systemDefault;
+
+  /// No description provided for @appearance.
+  ///
+  /// In zh, this message translates to:
+  /// **'外观'**
+  String get appearance;
+
+  /// No description provided for @security.
+  ///
+  /// In zh, this message translates to:
+  /// **'安全'**
+  String get security;
+
+  /// No description provided for @notificationSettings.
+  ///
+  /// In zh, this message translates to:
+  /// **'通知设置'**
+  String get notificationSettings;
+
+  /// No description provided for @adminFunctions.
+  ///
+  /// In zh, this message translates to:
+  /// **'管理员功能'**
+  String get adminFunctions;
+
+  /// No description provided for @userManagement.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户管理'**
+  String get userManagement;
+
+  /// No description provided for @version.
+  ///
+  /// In zh, this message translates to:
+  /// **'版本'**
+  String get version;
+
+  /// No description provided for @userAgreement.
+  ///
+  /// In zh, this message translates to:
+  /// **'用户协议'**
+  String get userAgreement;
+
+  /// No description provided for @privacyPolicy.
+  ///
+  /// In zh, this message translates to:
+  /// **'隐私政策'**
+  String get privacyPolicy;
+
+  /// No description provided for @checkUpdate.
+  ///
+  /// In zh, this message translates to:
+  /// **'检查更新'**
+  String get checkUpdate;
+
+  /// No description provided for @currentVersion.
+  ///
+  /// In zh, this message translates to:
+  /// **'当前版本'**
+  String get currentVersion;
+
+  /// No description provided for @latestVersion.
+  ///
+  /// In zh, this message translates to:
+  /// **'已是最新版本'**
+  String get latestVersion;
+
+  /// No description provided for @confirmLogout.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认退出'**
+  String get confirmLogout;
+
+  /// No description provided for @confirmLogoutMessage.
+  ///
+  /// In zh, this message translates to:
+  /// **'确认退出登录？'**
+  String get confirmLogoutMessage;
+
+  /// No description provided for @hideAmountDisplay.
+  ///
+  /// In zh, this message translates to:
+  /// **'隐藏金额显示'**
+  String get hideAmountDisplay;
+
+  /// No description provided for @biometricSubtitle.
+  ///
+  /// In zh, this message translates to:
+  /// **'Face ID / 指纹'**
+  String get biometricSubtitle;
+
+  /// No description provided for @budgetManagement.
+  ///
+  /// In zh, this message translates to:
+  /// **'收支管理'**
+  String get budgetManagement;
+
+  /// No description provided for @budgetTemplates.
+  ///
+  /// In zh, this message translates to:
+  /// **'收支项管理'**
+  String get budgetTemplates;
+
+  /// No description provided for @yearlyStats.
+  ///
+  /// In zh, this message translates to:
+  /// **'年度统计'**
+  String get yearlyStats;
+
+  /// No description provided for @monthlyBudget.
+  ///
+  /// In zh, this message translates to:
+  /// **'月度预算'**
+  String get monthlyBudget;
+
+  /// No description provided for @expenseTemplates.
+  ///
+  /// In zh, this message translates to:
+  /// **'支出项'**
+  String get expenseTemplates;
+
+  /// No description provided for @incomeTemplates.
+  ///
+  /// In zh, this message translates to:
+  /// **'收入项'**
+  String get incomeTemplates;
+
+  /// No description provided for @systemFixedItems.
+  ///
+  /// In zh, this message translates to:
+  /// **'系统固定项'**
+  String get systemFixedItems;
+
+  /// No description provided for @customFixedItems.
+  ///
+  /// In zh, this message translates to:
+  /// **'自定义固定项'**
+  String get customFixedItems;
+
+  /// No description provided for @temporaryItems.
+  ///
+  /// In zh, this message translates to:
+  /// **'临时项'**
+  String get temporaryItems;
+
+  /// No description provided for @expectedRange.
+  ///
+  /// In zh, this message translates to:
+  /// **'预期范围'**
+  String get expectedRange;
+
+  /// No description provided for @upgradeToFixed.
+  ///
+  /// In zh, this message translates to:
+  /// **'升级为固定项'**
+  String get upgradeToFixed;
+
+  /// No description provided for @monthlyTrend.
+  ///
+  /// In zh, this message translates to:
+  /// **'月度趋势'**
+  String get monthlyTrend;
+
+  /// No description provided for @monthlyDetail.
+  ///
+  /// In zh, this message translates to:
+  /// **'月度明细'**
+  String get monthlyDetail;
+
+  /// No description provided for @categoryBreakdown.
+  ///
+  /// In zh, this message translates to:
+  /// **'分类统计'**
+  String get categoryBreakdown;
+
+  /// No description provided for @totalNet.
+  ///
+  /// In zh, this message translates to:
+  /// **'总结余'**
+  String get totalNet;
+
+  /// No description provided for @averageSavingsRate.
+  ///
+  /// In zh, this message translates to:
+  /// **'平均储蓄率'**
+  String get averageSavingsRate;
 }
 
 class _AppLocalizationsDelegate

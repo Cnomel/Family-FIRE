@@ -1,6 +1,5 @@
 """Asset management API router."""
 
-from app.families.dependencies import verify_family_member
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,11 +13,14 @@ from app.assets.schemas import (
     AssetStatsResponse,
     BulkActionRequest,
     CreateAssetRequest,
+    CreateCategoryRequest,
     UpdateAssetRequest,
+    UpdateCategoryRequest,
 )
 from app.auth.dependencies import CurrentUser
 from app.common.schemas import MessageResponse, SuccessResponse
 from app.database import get_db
+from app.families.dependencies import verify_family_member
 
 router = APIRouter()
 
@@ -144,6 +146,75 @@ async def get_insurance_gaps(
 async def get_relationship_types():
     from app.assets.lifecycle.engine import RELATIONSHIP_TYPES
     return SuccessResponse(data=RELATIONSHIP_TYPES)
+
+
+# ============================================================
+# Category Endpoints (must be before /{asset_id})
+# ============================================================
+
+@router.post(
+    "/categories",
+    response_model=SuccessResponse[dict],
+    status_code=201,
+    summary="创建资产分类",
+    description="创建新的资产分类",
+)
+async def create_category(
+    data: CreateCategoryRequest,
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
+):
+    category = await asset_service.create_category(db, family_id, current_user.id, data)
+    return SuccessResponse(data=category.model_dump(), message="分类创建成功")
+
+
+@router.get(
+    "/categories",
+    response_model=SuccessResponse[list],
+    summary="资产分类列表",
+    description="获取所有资产分类",
+)
+async def list_categories(
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
+):
+    categories = await asset_service.list_categories(db, family_id, current_user.id)
+    return SuccessResponse(data=[c.model_dump() for c in categories])
+
+
+@router.put(
+    "/categories/{category_id}",
+    response_model=SuccessResponse[dict],
+    summary="更新资产分类",
+    description="更新资产分类信息",
+)
+async def update_category(
+    category_id: str,
+    data: UpdateCategoryRequest,
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
+):
+    category = await asset_service.update_category(db, category_id, family_id, current_user.id, data)
+    return SuccessResponse(data=category.model_dump(), message="分类更新成功")
+
+
+@router.delete(
+    "/categories/{category_id}",
+    response_model=MessageResponse,
+    summary="删除资产分类",
+    description="删除资产分类（资产将变为未分类）",
+)
+async def delete_category(
+    category_id: str,
+    current_user: CurrentUser = None,
+    db: AsyncSession = Depends(get_db),
+    family_id: str = Depends(verify_family_member),
+):
+    await asset_service.delete_category(db, category_id, family_id, current_user.id)
+    return MessageResponse(message="分类已删除")
 
 
 @router.get(

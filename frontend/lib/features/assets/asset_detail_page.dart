@@ -209,10 +209,8 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
             ],
 
             // 标签
-            if (asset['tags'] != null && (asset['tags'] as List).isNotEmpty) ...[
-              _buildTags(asset['tags']),
-              const SizedBox(height: 16),
-            ],
+            _buildTags(asset['tags'] ?? []),
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -293,14 +291,60 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
                       icon: const Icon(Icons.swap_horiz),
                       label: const Text('交易'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(context).colorScheme.primary,
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
                 ],
               ),
             ],
+            // 创建信息
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withAlpha(128)),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.person_outline,
+                    size: 14,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    asset['created_by_name'] ?? '未知',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Icon(
+                    Icons.access_time,
+                    size: 14,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _formatDateTime(asset['created_at']),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -561,17 +605,137 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
   }
 
   Widget _buildMetadata(Map<String, dynamic> metadata, String? type) {
+    // 类型中文映射
+    final typeMap = {
+      'financial': '金融资产',
+      'vehicle': '车辆',
+      'real_estate': '房产',
+      'electronics': '电子产品',
+      'furniture': '家具',
+      'insurance': '保险',
+      'subscription': '订阅服务',
+      'account': '数字账户',
+      'consumable': '消耗品',
+    };
+
+    // 字段名中文映射
+    final fieldNameMap = {
+      // 金融资产
+      'instrument_type': '投资类型',
+      'ticker': '代码',
+      'exchange': '交易所',
+      'shares': '持有份额',
+      'average_cost_basis': '平均成本',
+      'current_price': '当前价格',
+      'price_currency': '价格货币',
+      'expense_ratio': '费率',
+      'dividend_yield': '股息率',
+      'expected_yield': '预期收益率',
+      'annual_income': '年收益金额',
+      'tax_advantaged': '税收优惠',
+      'account_type': '账户类型',
+      // 车辆
+      'type': '类型',
+      'make': '品牌',
+      'model': '型号',
+      'year': '年份',
+      'vin': '车架号',
+      'license_plate': '车牌号',
+      'mileage': '里程数',
+      'fuel_type': '燃料类型',
+      'registration_expiry': '注册到期日',
+      // 房产
+      'address': '地址',
+      'square_footage': '面积(㎡)',
+      'bedrooms': '卧室数',
+      'bathrooms': '卫生间数',
+      'year_built': '建造年份',
+      'property_tax_annual': '年房产税',
+      'hoa_monthly': '月物业费',
+      'rental_income': '租金收入',
+      // 电子产品
+      'brand': '品牌',
+      'serial_number': '序列号',
+      'specs': '规格参数',
+      'warranty_expiration': '保修到期',
+      'os_firmware': '系统/固件版本',
+      // 家具
+      'material': '材质',
+      'room': '房间',
+      'dimensions': '尺寸',
+      'condition': '状态',
+      // 保险
+      'provider': '服务商',
+      'policy_number': '保单号',
+      'coverage_amount': '保额',
+      'deductible': '免赔额',
+      'premium': '保费',
+      'premium_frequency': '缴费频率',
+      'beneficiaries': '受益人',
+      'covered_assets': '覆盖资产',
+      // 订阅
+      'plan': '套餐',
+      'billing_cycle': '计费周期',
+      'billing_amount': '计费金额',
+      'next_billing_date': '下次计费日期',
+      'auto_renew': '自动续费',
+      'cancel_url': '取消链接',
+      'usage_level': '使用程度',
+      'annual_cost': '年化成本',
+      // 账户
+      'username': '用户名',
+      'email': '邮箱',
+      'url': 'URL',
+      'mfa_enabled': 'MFA验证',
+      'credential_vault_ref': '凭据库引用',
+      'account_number': '账号',
+      // 消耗品
+      'initial_quantity': '初始数量',
+      'current_quantity': '当前数量',
+      'unit': '单位',
+      'purchase_location': '购买地点',
+      'reorder_url': '补货链接',
+      'cost_per_unit': '单位成本',
+      'consumption_rate': '消耗率',
+      'reorder_threshold': '补货阈值',
+    };
+
+    // instrument_type 的中文映射
+    final instrumentTypeMap = {
+      'stock': '股票',
+      'etf': 'ETF',
+      'mutual_fund': '基金',
+      'bond': '债券',
+      'crypto': '加密货币',
+      'reit': 'REITs',
+      'option': '期权',
+      'cd': '定期存款',
+      'money_market': '货币市场',
+    };
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${type ?? "详细"}信息', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            Text('${typeMap[type] ?? type ?? "详细"}信息', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
             ...metadata.entries
-                .where((e) => e.value != null && e.value.toString().isNotEmpty)
-                .map((e) => _buildInfoRow(e.key, e.value.toString())),
+                .where((e) => e.value != null && e.value.toString().isNotEmpty && e.key != 'price_source' && e.key != 'transactions')
+                .map((e) {
+              String label = fieldNameMap[e.key] ?? e.key;
+              String value = e.value.toString();
+              // 特殊处理 instrument_type
+              if (e.key == 'instrument_type') {
+                value = instrumentTypeMap[e.value] ?? e.value.toString();
+              }
+              // 特殊处理布尔值
+              if (e.value is bool) {
+                value = e.value ? '是' : '否';
+              }
+              return _buildInfoRow(label, value);
+            }),
           ],
         ),
       ),
@@ -982,6 +1146,9 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
   }
 
   Widget _buildTags(List<dynamic> tags) {
+    const maxTags = 3;
+    final canAdd = tags.length < maxTags;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1003,7 +1170,7 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          '${tags.length}',
+                          '${tags.length}/$maxTags',
                           style: TextStyle(
                             fontSize: 12,
                             color: Theme.of(context).colorScheme.onPrimaryContainer,
@@ -1014,8 +1181,13 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
                   ],
                 ),
                 IconButton(
-                  icon: const Icon(Icons.add, size: 20),
-                  onPressed: () => _addTag(),
+                  icon: Icon(
+                    Icons.add,
+                    size: 20,
+                    color: canAdd ? null : Colors.grey,
+                  ),
+                  onPressed: canAdd ? () => _addTag() : null,
+                  tooltip: canAdd ? '添加标签' : '最多只能添加$maxTags个标签',
                 ),
               ],
             ),
@@ -1025,7 +1197,7 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Center(
                   child: Text(
-                    '点击 + 按钮添加标签',
+                    '点击 + 按钮添加标签（最多$maxTags个）',
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                   ),
                 ),
@@ -1034,39 +1206,89 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: tags.map((tag) => Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer.withAlpha(128),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        tag,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
-                        ),
+                children: [
+                  ...tags.map((tag) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _getTagColor(tags.indexOf(tag)).withAlpha(30),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: _getTagColor(tags.indexOf(tag)).withAlpha(80),
                       ),
-                      const SizedBox(width: 4),
-                      GestureDetector(
-                        onTap: () => _removeTag(tag),
-                        child: Icon(
-                          Icons.close,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _getTagIcon(tags.indexOf(tag)),
                           size: 14,
-                          color: Theme.of(context).colorScheme.onPrimaryContainer.withAlpha(180),
+                          color: _getTagColor(tags.indexOf(tag)),
                         ),
+                        const SizedBox(width: 4),
+                        Text(
+                          tag,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: _getTagColor(tags.indexOf(tag)),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () => _removeTag(tag),
+                          child: Icon(
+                            Icons.close,
+                            size: 14,
+                            color: _getTagColor(tags.indexOf(tag)).withAlpha(180),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+                  if (!canAdd)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withAlpha(20),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey.withAlpha(50)),
                       ),
-                    ],
-                  ),
-                )).toList(),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.info_outline, size: 14, color: Colors.grey),
+                          SizedBox(width: 4),
+                          Text(
+                            '已达上限',
+                            style: TextStyle(fontSize: 11, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
           ],
         ),
       ),
     );
+  }
+
+  Color _getTagColor(int index) {
+    final colors = [
+      Colors.blue,
+      Colors.green,
+      Colors.orange,
+    ];
+    return colors[index % colors.length];
+  }
+
+  IconData _getTagIcon(int index) {
+    final icons = [
+      Icons.label,
+      Icons.bookmark,
+      Icons.star,
+    ];
+    return icons[index % icons.length];
   }
 
   Future<void> _addTag() async {
@@ -1108,6 +1330,17 @@ class _AssetDetailPageState extends ConsumerState<AssetDetailPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('删除标签失败')));
       }
+    }
+  }
+
+  String _formatDateTime(String? dateTimeStr) {
+    if (dateTimeStr == null) return '未知';
+    try {
+      final dateTime = DateTime.parse(dateTimeStr);
+      return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} '
+          '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+    } catch (e) {
+      return '未知';
     }
   }
 
