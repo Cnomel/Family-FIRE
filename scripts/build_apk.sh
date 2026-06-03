@@ -7,7 +7,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$SCRIPT_DIR"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
 DOWNLOADS_DIR="$PROJECT_DIR/downloads"
 
@@ -153,7 +153,7 @@ build_apk() {
             ;;
     esac
     
-    if [ ! -f "$APK_PATH" ]; then
+    if [ ! -f "$FRONTEND_DIR/$APK_PATH" ]; then
         print_error "APK构建失败"
         exit 1
     fi
