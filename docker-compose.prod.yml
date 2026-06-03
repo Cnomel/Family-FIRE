@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -75,7 +73,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - downloads_data:/app/downloads
+      - ./downloads:/app/downloads
 
   # Celery Worker
   celery-worker:
