@@ -183,6 +183,14 @@ configure_deployment() {
 configure_database() {
     print_step "[3/8] 配置数据库"
     
+    # 检查是否已有 .env.prod 文件
+    if [ -f "$PROJECT_DIR/.env.prod" ]; then
+        source "$PROJECT_DIR/.env.prod"
+        print_success "检测到现有配置，使用已有密码"
+        print_success "数据库用户: ${DB_USER:-postgres}"
+        return
+    fi
+    
     echo ""
     read -p "  数据库用户名 (默认: postgres): " DB_USER
     DB_USER=${DB_USER:-postgres}
@@ -206,6 +214,12 @@ configure_database() {
 configure_redis() {
     print_step "[4/8] 配置Redis"
     
+    # 如果已有配置，跳过
+    if [ -f "$PROJECT_DIR/.env.prod" ] && [ -n "$REDIS_PASSWORD" ]; then
+        print_success "使用已有Redis配置"
+        return
+    fi
+    
     echo ""
     read -p "  Redis密码 (默认: 自动生成): " REDIS_PASSWORD
     if [ -z "$REDIS_PASSWORD" ]; then
@@ -225,6 +239,12 @@ configure_redis() {
 
 configure_minio() {
     print_step "[5/8] 配置MinIO对象存储"
+    
+    # 如果已有配置，跳过
+    if [ -f "$PROJECT_DIR/.env.prod" ] && [ -n "$MINIO_PASSWORD" ]; then
+        print_success "使用已有MinIO配置"
+        return
+    fi
     
     echo ""
     read -p "  MinIO用户名 (默认: minioadmin): " MINIO_USER
@@ -252,8 +272,14 @@ configure_minio() {
 generate_configs() {
     print_step "[6/8] 生成配置文件"
     
-    # Generate JWT secret
-    JWT_SECRET_KEY=$(openssl rand -hex 32)
+    # 检查是否已有 .env.prod，保留 JWT_SECRET_KEY
+    if [ -f "$PROJECT_DIR/.env.prod" ]; then
+        source "$PROJECT_DIR/.env.prod"
+        print_success "保留现有 JWT_SECRET_KEY"
+    else
+        # Generate JWT secret
+        JWT_SECRET_KEY=$(openssl rand -hex 32)
+    fi
     
     # Create .env file for docker-compose
     cat > "$PROJECT_DIR/.env.prod" << EOF
