@@ -66,6 +66,10 @@ mobile/.idea/
 # MinIO data
 minio_data/
 
+# Downloads (APK files)
+downloads/
+*.apk
+
 # Node (if any)
 node_modules/
 backend/family_fire.db
