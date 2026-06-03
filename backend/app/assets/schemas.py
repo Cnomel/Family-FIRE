@@ -59,6 +59,15 @@ class UpdateAssetRequest(BaseModel):
     custom_fields: dict[str, Any] | None = None
     status: str | None = Field(default=None, pattern="^(active|archived|disposed)$")
 
+    # Financial info
+    purchase_price: float | None = Field(default=None, ge=0, description="购买价格")
+    purchase_date: datetime | None = Field(default=None, description="购买日期")
+    currency: str | None = Field(default=None, max_length=3, description="货币代码")
+
+    # Type-specific metadata (JSON)
+    metadata_type: str | None = Field(default=None, description="元数据类型")
+    metadata: dict[str, Any] | None = Field(default=None, description="类型特定元数据")
+
 
 class AssetFilterParams(BaseModel):
     """Asset list filter parameters."""

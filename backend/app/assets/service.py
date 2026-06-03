@@ -687,6 +687,43 @@ async def update_asset(
     await db.flush()
     logger.info("asset_updated", asset_id=asset_id)
 
+    # Update financial info
+    if data.purchase_price is not None or data.purchase_date is not None or data.currency is not None:
+        fin_stmt = select(AssetFinancial).where(AssetFinancial.asset_id == asset_id)
+        fin_result = await db.execute(fin_stmt)
+        financial = fin_result.scalar_one_or_none()
+
+        if financial:
+            if data.purchase_price is not None:
+                financial.purchase_price = data.purchase_price
+            if data.purchase_date is not None:
+                financial.purchase_date = data.purchase_date
+            if data.currency is not None:
+                financial.currency = data.currency
+            await db.flush()
+
+    # Update metadata
+    if data.metadata is not None and data.metadata_type is not None:
+        # Delete existing metadata
+        for _type_name, model_class in METADATA_MODELS.items():
+            meta_stmt = select(model_class).where(model_class.asset_id == asset_id)
+            meta_result = await db.execute(meta_stmt)
+            meta = meta_result.scalar_one_or_none()
+            if meta:
+                await db.delete(meta)
+                await db.flush()
+
+        # Create new metadata
+        if data.metadata_type in METADATA_MODELS:
+            model_class = METADATA_MODELS[data.metadata_type]
+            metadata = model_class(
+                id=str(uuid.uuid4()),
+                asset_id=asset_id,
+                **data.metadata,
+            )
+            db.add(metadata)
+            await db.flush()
+
     # Get financial info
     fin_stmt = select(AssetFinancial).where(AssetFinancial.asset_id == asset_id)
     fin_result = await db.execute(fin_stmt)
