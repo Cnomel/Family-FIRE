@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'api_exception.dart';
+import '../../config/env.dart';
 import '../storage/secure_storage.dart';
 import '../network/network_service.dart';
 import '../cache/local_cache_service.dart';
@@ -19,13 +20,14 @@ class ApiClient {
 
   /// 根据平台返回合适的 base URL
   static String get defaultBaseUrl {
+    // 优先使用环境变量配置
+    if (EnvConfig.apiBaseUrl.isNotEmpty) {
+      return EnvConfig.apiBaseUrl;
+    }
+    // 本地开发默认地址
     if (kIsWeb) {
-      // Web: 使用当前页面的 origin，或者默认 localhost:8000
       return 'http://localhost:8000';
     }
-    // Android 模拟器使用 10.0.2.2 访问宿主机
-    // iOS 模拟器可以直接用 localhost
-    // 真机需要配置实际 IP
     return 'http://10.0.2.2:8000';
   }
 

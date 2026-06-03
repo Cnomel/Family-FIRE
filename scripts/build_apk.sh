@@ -138,7 +138,7 @@ build_apk() {
     
     case $build_type in
         1)
-            flutter build apk --release
+            flutter build apk --release --dart-define=API_BASE_URL=$API_URL --dart-define=WS_URL=${API_URL/http/ws}
             APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
             BUILD_TYPE="release"
             ;;
