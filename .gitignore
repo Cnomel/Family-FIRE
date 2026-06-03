@@ -25,6 +25,7 @@ ENV/
 # Environment
 .env
 .env.local
+.env.prod
 
 # Testing
 .pytest_cache/
@@ -48,6 +49,10 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+
+# Production configs (contains sensitive data)
+.env.prod
+nginx/nginx.prod.conf
 
 # Flutter
 mobile/.dart_tool/
