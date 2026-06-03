@@ -147,3 +147,32 @@ uv run python scripts/init_db.py
 # 为现有家庭创建系统预设收支模板
 uv run python scripts/seed_budget_templates.py
 ```
+
+### Q: Android 设备无法联网/请求发不出去？
+
+**症状**: curl 测试正常，但 app 请求后端完全接收不到请求
+
+**原因**: `AndroidManifest.xml` 缺少 `INTERNET` 权限
+
+**检查清单**:
+1. `frontend/android/app/src/main/AndroidManifest.xml` 必须包含：
+   ```xml
+   <uses-permission android:name="android.permission.INTERNET"/>
+   ```
+2. `android:usesCleartextTraffic="true"` 允许 HTTP 明文流量
+3. debug 版本有独立的 manifest，可能掩盖 release 版本的问题
+
+**相关文件**:
+- `frontend/android/app/src/main/AndroidManifest.xml` - 主 manifest
+- `frontend/android/app/src/debug/AndroidManifest.xml` - debug manifest
+
+### Q: Flutter 网络检查失败导致无法登录？
+
+**症状**: 抛出 `NETWORK_UNREACHABLE` 或 `NETWORK_ERROR` 异常
+
+**原因**: 前端健康检查端点与后端不一致
+
+**检查清单**:
+1. 后端健康检查端点是 `/health`（不是 `/api/health`）
+2. `frontend/lib/core/network/network_service.dart` 中的检查路径必须匹配
+3. 网络检查失败会阻止所有 API 请求
