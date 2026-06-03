@@ -442,6 +442,12 @@ start_services() {
     else
         print_error "Nginx 启动失败"
     fi
+    
+    # Initialize database
+    echo ""
+    print_warning "初始化数据库..."
+    docker exec -w /app family-fire-api uv run python scripts/init_db.py
+    print_success "数据库初始化完成"
 }
 
 # ============================================================
