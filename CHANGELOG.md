@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.1] - 2026-06-03
+
+### Deployment & Configuration Improvements
+
+#### Added
+- **Auto Database Init**: Database automatically initializes during deployment
+- **SSL Choice**: Public deployment now supports choosing SSL or not
+- **API Config Docs**: Added APP API address configuration documentation
+
+#### Fixed
+- **Dockerfile**: Fixed uv sync for faster dependency installation
+- **Dockerfile**: Fixed FROM AS casing warning
+- **Deploy Script**: Fixed BASE_URL generation for non-SSL deployments
+
 ## [0.3.0] - 2026-06-03
 
 ### Phase 3 — Asset Management & Budget System Enhancement

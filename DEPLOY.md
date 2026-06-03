@@ -19,6 +19,7 @@ cd family-fire
 4. 生成配置文件
 5. 构建APK（可选）
 6. 启动所有服务
+7. 初始化数据库（创建表和默认管理员）
 
 ### 单独构建APK
 
@@ -170,6 +171,22 @@ docker cp family-fire-minio:/data ./minio_backup_$(date +%Y%m%d)
 ### Q: 如何修改管理员密码？
 
 登录后在设置页面修改，或直接在数据库中更新。
+
+### Q: 如何重置数据库？
+
+```bash
+# 停止服务并删除数据
+docker compose -f docker-compose.prod.yml down -v
+
+# 重新部署（会自动初始化数据库）
+./deploy.sh
+```
+
+### Q: 如何手动初始化数据库？
+
+```bash
+docker exec -w /app family-fire-api uv run python scripts/init_db.py
+```
 
 ### Q: 如何更新版本？
 
