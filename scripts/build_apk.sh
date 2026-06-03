@@ -62,9 +62,6 @@ check_flutter() {
     
     FLUTTER_VERSION=$(flutter --version | head -1 | cut -d' ' -f2)
     print_success "Flutter $FLUTTER_VERSION"
-    
-    # Check if Flutter is up to date
-    flutter --version
 }
 
 # ============================================================
@@ -76,7 +73,7 @@ configure_api() {
     
     echo ""
     echo -e "  请输入后端API地址:"
-    echo -e "  (例如: http://192.168.1.100:8000 或 https://api.example.com)"
+    echo -e "  (例如: http://family.cnomel.cn 或 https://api.example.com)"
     echo ""
     read -p "  API地址: " API_URL
     
@@ -88,15 +85,8 @@ configure_api() {
     # Remove trailing slash
     API_URL=${API_URL%/}
     
-    # Generate env.dart
-    mkdir -p "$FRONTEND_DIR/lib/config"
-    cat > "$FRONTEND_DIR/lib/config/env.dart" << EOF
-/// 环境配置 - 由构建脚本自动生成
-class EnvConfig {
-  static const String apiBaseUrl = '$API_URL';
-  static const String wsUrl = '${API_URL/http/ws}';
-}
-EOF
+    # Generate ws url
+    WS_URL=${API_URL/http/ws}
     
     print_success "API地址已配置: $API_URL"
 }
@@ -127,38 +117,21 @@ build_apk() {
     cd "$FRONTEND_DIR"
     
     echo ""
-    echo -e "  请选择构建类型:"
-    echo -e "    ${GREEN}1)${NC} Release版本 (推荐，体积小)"
-    echo -e "    ${GREEN}2)${NC} Debug版本 (调试用)"
-    echo ""
-    read -p "  请输入选择 [1/2]: " build_type
-    
-    echo ""
     print_warning "正在构建APK，请稍候..."
     
-    case $build_type in
-        1)
-            flutter build apk --release --dart-define=API_BASE_URL=$API_URL --dart-define=WS_URL=${API_URL/http/ws}
-            APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
-            BUILD_TYPE="release"
-            ;;
-        2)
-            flutter build apk --debug
-            APK_PATH="build/app/outputs/flutter-apk/app-debug.apk"
-            BUILD_TYPE="debug"
-            ;;
-        *)
-            print_error "无效选择"
-            exit 1
-            ;;
-    esac
+    flutter build apk --release \
+        --dart-define=API_BASE_URL=$API_URL \
+        --dart-define=WS_URL=$WS_URL
+    
+    APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+    BUILD_TYPE="release"
     
     if [ ! -f "$FRONTEND_DIR/$APK_PATH" ]; then
         print_error "APK构建失败"
         exit 1
     fi
     
-    print_success "APK构建完成 ($BUILD_TYPE)"
+    print_success "APK构建完成"
 }
 
 # ============================================================
@@ -173,7 +146,7 @@ copy_apk() {
     # Get version from pubspec.yaml
     VERSION=$(grep 'version:' "$FRONTEND_DIR/pubspec.yaml" | cut -d' ' -f2 | cut -d'+' -f1)
     
-    APK_NAME="family-fire-v${VERSION}-${BUILD_TYPE}.apk"
+    APK_NAME="family-fire-v${VERSION}.apk"
     cp "$FRONTEND_DIR/$APK_PATH" "$DOWNLOADS_DIR/$APK_NAME"
     
     # Create latest symlink
@@ -200,11 +173,12 @@ print_summary() {
     echo -e "  ${GREEN}APK文件:${NC}"
     echo -e "    路径: ${BLUE}$DOWNLOADS_DIR/$APK_NAME${NC}"
     echo -e "    大小: ${YELLOW}$APK_SIZE${NC}"
+    echo -e "    API: ${BLUE}$API_URL${NC}"
     echo ""
     echo -e "  ${GREEN}分发方式:${NC}"
     echo -e "    1. 直接将APK文件发送给用户安装"
     echo -e "    2. 部署到Web服务器提供下载链接"
-    echo -e "       下载地址: ${BLUE}<服务器地址>/downloads/$APK_NAME${NC}"
+    echo -e "       下载地址: ${BLUE}$API_URL/downloads/$APK_NAME${NC}"
     echo ""
 }
 
