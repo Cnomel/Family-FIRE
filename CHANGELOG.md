@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.3.0] - 2026-06-03
+
+### Phase 3 — Asset Management & Budget System Enhancement
+
+#### Added
+- **Asset Categories**: Custom category management with icons and colors
+- **Budget Templates**: System preset budget templates for quick setup
+- **Monthly Budget**: Monthly budget tracking with income/expense analysis
+- **Yearly Stats**: Annual financial statistics and trends
+- **Privacy Policy**: Privacy policy page
+- **Terms of Service**: Terms of service page
+- **User Guide**: User guide page
+- **Local Cache**: Local cache service for offline support
+- **Network Service**: Network connectivity service
+- **One-Click Deploy**: `deploy.sh` script supporting internal/public network deployment
+- **APK Build Script**: `scripts/build_apk.sh` for standalone APK building
+- **Production Config**: docker-compose.prod.yml, nginx.prod.conf, Dockerfile.prod
+- **Deploy Documentation**: DEPLOY.md with detailed deployment guide
+
+#### Fixed
+- Asset relationship query using wrong field names (source_asset_id/target_asset_id)
+- Financial asset detail page metadata fields not localized
+- Trade button colors inconsistent with project color scheme
+
+#### Changed
+- Updated README.md with new deployment options and features
+- Improved asset detail page with full Chinese localization
+- Unified color scheme using AppColors (red=profit, green=loss)
+
+#### Stats
+- 182+ backend tests passing
+- 50 files changed, 7000+ lines added
+
 ## [0.2.0] - 2026-05-29
 
 ### Phase 2 — Open Source & Flutter Integration

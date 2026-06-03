@@ -38,7 +38,7 @@ uv run ruff format app/ tests/
 ### Flutter
 
 ```bash
-cd mobile
+cd frontend
 
 # 安装依赖
 flutter pub get
@@ -51,6 +51,9 @@ flutter test
 
 # 运行应用
 flutter run
+
+# 构建APK
+flutter build apk --release
 ```
 
 ### Docker
@@ -61,6 +64,9 @@ docker-compose up -d postgres redis minio
 
 # 启动生产环境
 docker-compose -f docker-compose.prod.yml up -d
+
+# 一键部署（推荐）
+./deploy.sh
 
 # 查看日志
 docker-compose logs -f backend
@@ -97,11 +103,23 @@ docker-compose down
 
 ## 部署
 
+### 一键部署（推荐）
+
+```bash
+./deploy.sh
+```
+
+支持内网部署和公网部署，自动配置数据库、Redis、MinIO、Nginx。
+
+### 手动部署
+
 1. 配置 `.env` 文件
 2. 运行 `./scripts/setup.sh`
 3. 启动后端: `uv run uvicorn app.main:app`
 4. 配置 Nginx 反向代理
 5. 配置 SSL 证书
+
+详细部署文档请参考 [DEPLOY.md](DEPLOY.md)
 
 ## 常见问题
 
