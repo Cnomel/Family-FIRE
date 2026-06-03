@@ -54,8 +54,8 @@ class NetworkService {
     try {
       final client = _ref.read(apiClientProvider);
       // 使用一个轻量级的请求来检测连接
-      await client.dio.get(
-        '/api/health',
+      final response = await client.dio.get(
+        '/health',
         options: Options(
           sendTimeout: const Duration(seconds: 5),
           receiveTimeout: const Duration(seconds: 5),
