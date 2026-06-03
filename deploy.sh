@@ -446,7 +446,7 @@ start_services() {
     # Initialize database
     echo ""
     print_warning "初始化数据库..."
-    docker exec -w /app family-fire-api uv run python scripts/init_db.py
+    docker exec -w /app family-fire-api python scripts/init_db.py
     print_success "数据库初始化完成"
 }
 
